@@ -1,7 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
 import os from "node:os"
-import { execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -33,21 +32,6 @@ export function setupTestMonorepo(testDir?: string): Dirs {
 
   fs.cpSync(FIXTURES_DIR, dir, { recursive: true })
   fs.cpSync(PLUGIN_DIR, path.join(dir, "team-alpha", ".opencode", "plugins", "ext-search"), { recursive: true })
-
-  const gitEnv = {
-    ...process.env,
-    GIT_AUTHOR_NAME: "test",
-    GIT_AUTHOR_EMAIL: "test@test.com",
-    GIT_COMMITTER_NAME: "test",
-    GIT_COMMITTER_EMAIL: "test@test.com",
-  }
-  execFileSync("git", ["init"], { cwd: dir, stdio: "pipe" })
-  execFileSync("git", ["add", "-A"], { cwd: dir, stdio: "pipe" })
-  execFileSync("git", ["commit", "-m", "init"], {
-    cwd: dir,
-    stdio: "pipe",
-    env: gitEnv,
-  })
 
   return getDirs(dir)
 }
