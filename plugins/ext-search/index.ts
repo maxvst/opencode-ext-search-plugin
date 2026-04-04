@@ -25,6 +25,7 @@ const IGNORE_TOOLS = new Set([
 ])
 
 type Options = {
+  root?: string
   directories: string[]
   excludePatterns?: string[]
   maxResults?: number
@@ -399,7 +400,10 @@ const extSearchPlugin = async (ctx: any, options?: Options) => {
   ]
   const worktree = path.resolve(ctx.worktree)
   const openDir = path.resolve(ctx.directory)
-  const resolvedDirs = resolveDirectories(opts.directories, ctx.worktree)
+  const basePath = opts.root
+    ? path.resolve(openDir, opts.root)
+    : worktree
+  const resolvedDirs = resolveDirectories(opts.directories, basePath)
 
   if (resolvedDirs.length === 0) return {}
 
