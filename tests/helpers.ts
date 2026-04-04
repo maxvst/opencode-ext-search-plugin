@@ -28,7 +28,7 @@ export function runOpencode(args: string[], cwd: string): OpencodeResult {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 120_000,
-      env: { ...process.env, NO_COLOR: "1", OPENCODE_FAKE_VCS: "git" },
+      env: { ...process.env, NO_COLOR: "1" },
     })
     return { stdout: stdout.toString(), stderr: "", exitCode: 0 }
   } catch (err: unknown) {
