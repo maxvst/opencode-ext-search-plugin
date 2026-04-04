@@ -33,29 +33,38 @@ type Options = {
 
 function getOpenCodeBinPaths(): string[] {
   const home = os.homedir()
-  const paths: string[] = []
+  const prefixes: string[] = []
 
   if (process.platform === "darwin") {
-    paths.push(path.join(home, "Library", "Caches", "opencode", "bin"))
-    paths.push(
-      path.join(home, "Library", "Application Support", "opencode", "bin"),
-    )
+    prefixes.push(home)
   } else if (IS_WIN) {
     const localAppData =
       process.env.LOCALAPPDATA || path.join(home, "AppData", "Local")
     const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming")
-    paths.push(path.join(localAppData, "opencode", "bin"))
-    paths.push(path.join(appData, "opencode", "bin"))
+    prefixes.push(localAppData, appData, home)
   } else {
     const xdgCacheHome =
       process.env.XDG_CACHE_HOME || path.join(home, ".cache")
     const xdgDataHome =
       process.env.XDG_DATA_HOME || path.join(home, ".local", "share")
-    paths.push(path.join(xdgCacheHome, "opencode", "bin"))
-    paths.push(path.join(xdgDataHome, "opencode", "bin"))
+    prefixes.push(xdgCacheHome, xdgDataHome, home)
   }
 
-  paths.push(path.join(home, ".opencode", "bin"))
+  const suffixes = [
+    "opencode/bin",
+    ".opencode/bin",
+    ".cache/opencode/bin",
+    ".local/share/opencode/bin",
+    "Library/Caches/opencode/bin",
+    "Library/Application Support/opencode/bin",
+  ]
+
+  const paths: string[] = []
+  for (const prefix of prefixes) {
+    for (const suffix of suffixes) {
+      paths.push(path.join(prefix, suffix))
+    }
+  }
   return paths
 }
 
