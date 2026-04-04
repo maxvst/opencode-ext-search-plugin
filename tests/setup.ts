@@ -22,9 +22,9 @@ export function createTestDir(): string {
 export function getDirs(testDir: string): Dirs {
   return {
     root: testDir,
-    app: path.join(testDir, "packages", "my-app"),
-    sharedTypes: path.join(testDir, "packages", "shared-types"),
-    commonUtils: path.join(testDir, "packages", "common-utils"),
+    app: path.join(testDir, "team-alpha", "my-app"),
+    sharedTypes: path.join(testDir, "shared-types"),
+    commonUtils: path.join(testDir, "common-utils"),
   }
 }
 
@@ -32,7 +32,7 @@ export function setupTestMonorepo(testDir?: string): Dirs {
   const dir = testDir ?? createTestDir()
 
   fs.cpSync(FIXTURES_DIR, dir, { recursive: true })
-  fs.cpSync(PLUGIN_DIR, path.join(dir, ".opencode", "plugins", "ext-search"), { recursive: true })
+  fs.cpSync(PLUGIN_DIR, path.join(dir, "team-alpha", ".opencode", "plugins", "ext-search"), { recursive: true })
 
   const gitEnv = {
     ...process.env,

@@ -3,7 +3,7 @@
     [
       "./.opencode/plugins/ext-search",
       {
-        "directories": ["packages/shared-types", "packages/common-utils"],
+        "directories": ["shared-types", "common-utils"],
         "excludePatterns": ["node_modules", ".git", "dist", "*.test.*"],
         "maxResults": 50
       }
