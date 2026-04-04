@@ -33,33 +33,39 @@
 
 ## Установка
 
-### 1. Скопируйте плагин в монорепозиторий
+### 1. Скопируйте плагин в директорию команды
 
-Поместите директорию `plugins/ext-search/` в корень вашего монорепозитория:
+Поместите директорию `plugins/ext-search/` в `.opencode/plugins/` внутри директории вашей команды:
 
 ```
 монорепа/
-├── opencode.json
-└── plugins/
-    └── ext-search/
-        ├── package.json
-        └── index.ts
+├── shared-types/
+├── common-utils/
+└── team-alpha/
+    ├── opencode.json
+    ├── .opencode/
+    │   └── plugins/
+    │       └── ext-search/
+    │           ├── package.json
+    │           └── index.ts
+    └── my-app/           ← подпроект, открываемый в OpenCode
 ```
 
 ### 2. Настройте `opencode.json`
 
-Добавьте плагин в конфигурацию OpenCode в файле `opencode.json` в корне монорепозитория:
+Добавьте плагин в конфигурацию OpenCode в файле `opencode.json` в директории команды:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
     [
-      "./plugins/ext-search",
+      "./.opencode/plugins/ext-search",
       {
+        "root": "../../",
         "directories": [
-          "packages/shared-types",
-          "packages/common-utils"
+          "shared-types",
+          "common-utils"
         ],
         "excludePatterns": ["node_modules", ".git", "dist", "*.test.*"],
         "maxResults": 50
@@ -68,8 +74,8 @@
   ],
   "permission": {
     "external_directory": {
-      "/абсолютный/путь/к/монорепе/packages/shared-types/*": "allow",
-      "/абсолютный/путь/к/монорепе/packages/common-utils/*": "allow"
+      "/абсолютный/путь/к/монорепе/shared-types/*": "allow",
+      "/абсолютный/путь/к/монорепе/common-utils/*": "allow"
     }
   }
 }
@@ -83,13 +89,27 @@
 
 | Параметр           | Тип        | Обязательный | Описание                                                                       |
 | ------------------ | ---------- | :-----------: | ------------------------------------------------------------------------------ |
-| `directories`      | `string[]` |      Да       | Список путей к внешним директориям (относительных от корня монорепы или абсолютных) |
+| `root`             | `string`   |     Нет       | Путь к корню монорепы (относительно открытого подпроекта). Если не указан — используется `ctx.worktree` (корень git-репозитория) |
+| `directories`      | `string[]` |      Да       | Список путей к внешним директориям (относительных от `root` или абсолютных) |
 | `excludePatterns`  | `string[]` |     Нет       | Glob-паттерны для исключения файлов (по умолчанию: `["node_modules", ".git", "dist"]`) |
 | `maxResults`       | `number`   |     Нет       | Максимум результатов из внешних директорий на один вызов (по умолчанию: `50`)  |
 
+### Поле `root`
+
+Плагин разрешает пути из `directories` относительно базовой директории. По умолчанию это `ctx.worktree` — корень git-репозитория, автоматически определяемый OpenCode. Если монорепа не использует git (или использует собственный VCS без маркера `.git`), OpenCode не сможет определить корень монорепы. В этом случае укажите `root` — путь от открытого подпроекта до корня монорепы:
+
+```json
+{
+  "root": "../../",
+  "directories": ["shared-types", "common-utils"]
+}
+```
+
+Если `root` указан — пути из `directories` разрешаются от `path.resolve(ctx.directory, root)`, иначе — от `ctx.worktree`.
+
 ### Форматы путей в `directories`
 
-- **Относительные** — разрешаются от корня git-репозитория (`worktree`): `"packages/shared-types"`
+- **Относительные** — разрешаются от базовой директории (определяемой `root` или `ctx.worktree`): `"shared-types"`
 - **Абсолютные** — используются как есть: `"/opt/shared-libs"`
 - **Домашняя директория** — поддерживается `~/`: `"~/projects/shared"`
 
@@ -145,29 +165,32 @@ Found 2 matches
 
 ```
 my-monorepo/
-├── opencode.json
-├── plugins/
-│   └── ext-search/
-│       ├── package.json
-│       └── index.ts
-└── packages/
-    ├── my-app/          ← открытый подпроект
-    ├── shared-types/    ← внешняя зависимость
-    └── common-utils/    ← внешняя зависимость
+├── shared-types/          ← общие типы (корень монорепы)
+├── common-utils/          ← общие утилиты (корень монорепы)
+└── team-alpha/            ← директория команды
+    ├── opencode.json
+    ├── .opencode/
+    │   └── plugins/
+    │       └── ext-search/
+    │           ├── package.json
+    │           └── index.ts
+    └── my-app/            ← подпроект, открытый в OpenCode
+        └── src/
 ```
 
-`opencode.json`:
+`team-alpha/opencode.json`:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
     [
-      "./plugins/ext-search",
+      "./.opencode/plugins/ext-search",
       {
+        "root": "../../",
         "directories": [
-          "packages/shared-types",
-          "packages/common-utils"
+          "shared-types",
+          "common-utils"
         ],
         "excludePatterns": ["node_modules", ".git", "dist"],
         "maxResults": 50
@@ -176,31 +199,34 @@ my-monorepo/
   ],
   "permission": {
     "external_directory": {
-      "/home/user/my-monorepo/packages/shared-types/*": "allow",
-      "/home/user/my-monorepo/packages/common-utils/*": "allow"
+      "/home/user/my-monorepo/shared-types/*": "allow",
+      "/home/user/my-monorepo/common-utils/*": "allow"
     }
   }
 }
 ```
 
-Теперь при открытии `my-monorepo/packages/my-app` в OpenCode:
+Теперь при открытии `my-monorepo/team-alpha/my-app` в OpenCode:
 
-1. OpenCode найдёт `my-monorepo/opencode.json`
-2. Загрузит плагин из `my-monorepo/plugins/ext-search/`
-3. Каждый вызов `grep`/`glob` будет автоматически дополняться результатами из `shared-types` и `common-utils`
-4. ИИ сможет использовать `deps_read` для чтения файлов из этих пакетов
+1. OpenCode найдёт `my-monorepo/team-alpha/opencode.json`
+2. Загрузит плагин из `my-monorepo/team-alpha/.opencode/plugins/ext-search/`
+3. Плагин определит корень монорепы через `root` (`../../` от `my-app` → корень монорепы)
+4. Каждый вызов `grep`/`glob` будет автоматически дополняться результатами из `shared-types` и `common-utils`
+5. ИИ сможет использовать `deps_read` для чтения файлов из этих пакетов
 
 ## Тестирование
 
 Для запуска e2e-тестов:
 
 ```bash
-node tests/e2e-test.mjs
+npx vitest run
 ```
 
 Требования для тестов:
 - OpenCode установлен и доступен по пути `~/.opencode/bin/opencode` (или задан через `OPENCODE_BIN`)
 - ripgrep доступен через PATH или в стандартных директориях OpenCode (для grep-тестов)
+
+Тестовая фикстура эмулирует монорепу без git (нет `.git`), чтобы верифицировать работу поля `root`.
 
 ## Совместимость
 
