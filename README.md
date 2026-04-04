@@ -22,12 +22,7 @@
 - **OpenCode** — установлен и доступен в системе (включает Bun)
 - **ripgrep** (`rg`) — для поиска по содержимому файлов (grep). Плагин автоматически ищет `rg` в следующем порядке:
   1. Системный `PATH`
-  2. `~/.cache/opencode/bin/rg` (Linux)
-  3. `~/.local/share/opencode/bin/rg` (Linux)
-  4. `~/Library/Caches/opencode/bin/rg` (macOS)
-  5. `~/Library/Application Support/opencode/bin/rg` (macOS)
-  6. `%LOCALAPPDATA%/opencode/bin/rg.exe` (Windows)
-  7. `~/.opencode/bin/rg` (legacy)
+  2. Стандартные директории OpenCode — плагин формирует все возможные пути путём комбинирования платформенных базовых директорий (XDG cache/data, `~`, AppData и др.) со стандартными суффиксами (`opencode/bin`, `.opencode/bin`, `.cache/opencode/bin`, `.local/share/opencode/bin`, `Library/Caches/opencode/bin`, `Library/Application Support/opencode/bin`)
 
   OpenCode автоматически скачивает `rg` при первом запуске, поэтому отдельная установка обычно не требуется. Поиск файлов (`glob`) не зависит от `rg` — используется нативный `Bun.Glob`.
 
