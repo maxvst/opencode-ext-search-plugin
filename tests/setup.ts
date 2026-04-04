@@ -32,7 +32,7 @@ export function setupTestMonorepo(testDir?: string): Dirs {
   const dir = testDir ?? createTestDir()
 
   fs.cpSync(FIXTURES_DIR, dir, { recursive: true })
-  fs.cpSync(PLUGIN_DIR, path.join(dir, "plugins", "ext-search"), { recursive: true })
+  fs.cpSync(PLUGIN_DIR, path.join(dir, ".opencode", "plugins", "ext-search"), { recursive: true })
 
   const gitEnv = {
     ...process.env,
