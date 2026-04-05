@@ -6,6 +6,14 @@ import { fileURLToPath } from "node:url"
 const IS_WIN = process.platform === "win32"
 const RG_BIN = IS_WIN ? "rg.exe" : "rg"
 
+const DEBUG = !!process.env.EXT_SEARCH_DEBUG
+
+function log(...args: unknown[]): void {
+  if (!DEBUG) return
+  const ts = new Date().toISOString().slice(11, 19)
+  console.error(`[ext-search ${ts}]`, ...args)
+}
+
 const IGNORE_TOOLS = new Set([
   "bash",
   "read",
@@ -66,6 +74,10 @@ function getOpenCodeBinPaths(): string[] {
       paths.push(path.join(prefix, suffix))
     }
   }
+  log("getOpenCodeBinPaths: platform=%s, prefixes=%o, candidate paths:", process.platform, prefixes)
+  for (const p of paths) {
+    log("  ", p)
+  }
   return paths
 }
 
@@ -73,7 +85,10 @@ let cachedRgPath: string | null = null
 let rgPathResolved = false
 
 function findRgBinary(): string | null {
-  if (rgPathResolved) return cachedRgPath
+  if (rgPathResolved) {
+    log("findRgBinary: returning cached result:", cachedRgPath)
+    return cachedRgPath
+  }
   rgPathResolved = true
 
   const pathEnv = process.env.PATH || ""
@@ -82,6 +97,7 @@ function findRgBinary(): string | null {
     ? (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";")
     : [""]
 
+  log("findRgBinary: searching in PATH...")
   for (const dir of pathEnv.split(pathSep)) {
     if (!dir) continue
     for (const ext of pathExt) {
@@ -89,22 +105,30 @@ function findRgBinary(): string | null {
       try {
         if (fs.existsSync(candidate)) {
           cachedRgPath = candidate
+          log("findRgBinary: found rg in PATH:", candidate)
           return cachedRgPath
         }
-      } catch {}
+      } catch {
+        log("findRgBinary: error checking PATH candidate:", candidate)
+      }
     }
   }
 
+  log("findRgBinary: not in PATH, searching OpenCode bin directories...")
   for (const dir of getOpenCodeBinPaths()) {
     const candidate = path.join(dir, RG_BIN)
     try {
       if (fs.existsSync(candidate)) {
         cachedRgPath = candidate
+        log("findRgBinary: found rg in OpenCode bin dir:", candidate)
         return cachedRgPath
       }
-    } catch {}
+    } catch {
+      log("findRgBinary: error checking OpenCode bin candidate:", candidate)
+    }
   }
 
+  log("findRgBinary: rg NOT found anywhere")
   return null
 }
 
@@ -113,8 +137,11 @@ function findPluginConfigDir(startDir: string): string | null {
   try {
     pluginDir = path.dirname(fileURLToPath(import.meta.url))
   } catch {
+    log("findPluginConfigDir: failed to determine plugin directory from import.meta.url")
     return null
   }
+
+  log("findPluginConfigDir: pluginDir =", pluginDir, ", startDir =", startDir)
 
   let current = path.resolve(startDir)
   const root = path.parse(current).root
@@ -123,38 +150,63 @@ function findPluginConfigDir(startDir: string): string | null {
     for (const name of ["opencode.json", "opencode.jsonc"]) {
       const configPath = path.join(current, name)
       try {
+        if (!fs.existsSync(configPath)) continue
         const raw = fs.readFileSync(configPath, "utf-8")
         const config = JSON.parse(raw)
-        if (!Array.isArray(config.plugin)) continue
-        for (const entry of config.plugin) {
-          if (!Array.isArray(entry) || typeof entry[0] !== "string") continue
-          const resolved = path.resolve(current, entry[0])
-          if (resolved === pluginDir) return current
+        if (!Array.isArray(config.plugin)) {
+          log("findPluginConfigDir:", configPath, "— no 'plugin' array, skipping")
+          continue
         }
-      } catch {}
+        for (const entry of config.plugin) {
+          if (!Array.isArray(entry) || typeof entry[0] !== "string") {
+            log("findPluginConfigDir:", configPath, "— entry is not [string, opts]:", JSON.stringify(entry))
+            continue
+          }
+          const resolved = path.resolve(current, entry[0])
+          log("findPluginConfigDir:", configPath, "— plugin entry[0]:", entry[0], ", resolved:", resolved, ", pluginDir:", pluginDir)
+          if (resolved === pluginDir) {
+            log("findPluginConfigDir: MATCH found! configDir =", current)
+            return current
+          }
+        }
+      } catch (e: any) {
+        log("findPluginConfigDir: error reading/parsing", configPath, ":", e.message || e)
+      }
     }
     current = path.dirname(current)
   }
+
+  log("findPluginConfigDir: no matching config found, walked up to filesystem root:", root)
   return null
 }
 
-function resolveDirectories(dirs: string[], worktree: string): string[] {
+function resolveDirectories(dirs: string[], basePath: string): string[] {
+  log("resolveDirectories: basePath =", basePath, ", input dirs:", JSON.stringify(dirs))
   const result: string[] = []
   for (const d of dirs) {
     let resolved: string
     if (d.startsWith("~/") || d === "~") {
       resolved = path.join(os.homedir(), d.slice(1))
+      log("resolveDirectories:", JSON.stringify(d), "→ (home expansion) →", resolved)
     } else if (path.isAbsolute(d)) {
       resolved = d
+      log("resolveDirectories:", JSON.stringify(d), "→ (absolute) →", resolved)
     } else {
-      resolved = path.resolve(worktree, d)
+      resolved = path.resolve(basePath, d)
+      log("resolveDirectories:", JSON.stringify(d), "→ (relative to basePath) →", resolved)
     }
     try {
-      if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+      const exists = fs.existsSync(resolved)
+      const isDir = exists && fs.statSync(resolved).isDirectory()
+      log("resolveDirectories:", resolved, "— exists:", exists, ", isDirectory:", isDir)
+      if (exists && isDir) {
         result.push(resolved)
       }
-    } catch {}
+    } catch (e: any) {
+      log("resolveDirectories: error checking", resolved, ":", e.message || e)
+    }
   }
+  log("resolveDirectories: final resolved dirs:", JSON.stringify(result))
   return result
 }
 
@@ -163,9 +215,11 @@ function isPathInExternalDirs(
   resolvedDirs: string[],
 ): boolean {
   const normalized = path.resolve(searchPath)
-  return resolvedDirs.some(
+  const result = resolvedDirs.some(
     (d) => normalized === d || normalized.startsWith(d + path.sep),
   )
+  log("isPathInExternalDirs: searchPath =", searchPath, ", normalized =", normalized, ", result =", result)
+  return result
 }
 
 function parseRgOutput(
@@ -215,6 +269,7 @@ async function spawn(
   args: string[],
   cwd?: string,
 ): Promise<{ stdout: string; exitCode: number }> {
+  log("spawn: command:", args[0], "args:", args.slice(1).join(" "), cwd ? "cwd=" + cwd : "(no cwd)")
   try {
     if (typeof Bun !== "undefined" && typeof Bun.spawn === "function") {
       const proc = Bun.spawn(args, {
@@ -231,9 +286,12 @@ async function spawn(
       }
       const stdout = Buffer.concat(chunks).toString()
       const exitCode = await proc.exited
+      log("spawn: Bun.spawn exited with code", exitCode, ", stdout length:", stdout.length)
       return { stdout, exitCode }
     }
-  } catch {}
+  } catch (e: any) {
+    log("spawn: Bun.spawn failed:", e.message || e)
+  }
 
   try {
     const childProcess = await import("child_process")
@@ -242,8 +300,10 @@ async function spawn(
       maxBuffer: 10 * 1024 * 1024,
       ...(cwd ? { cwd } : {}),
     })
+    log("spawn: execFileSync succeeded, stdout length:", stdout.length)
     return { stdout, exitCode: 0 }
   } catch (e: any) {
+    log("spawn: execFileSync failed:", e.message || e, ", exitCode:", e.status)
     return { stdout: e.stdout || "", exitCode: e.status || 1 }
   }
 }
@@ -278,9 +338,22 @@ async function searchExternalGrep(
   searchPath: string | undefined,
   rgPath: string,
 ): Promise<{ output: string; count: number }> {
+  log("searchExternalGrep: pattern =", JSON.stringify(pattern), ", include =", include, ", searchPath =", searchPath)
+  log("searchExternalGrep: resolvedDirs =", JSON.stringify(resolvedDirs))
+
   if (searchPath && isPathInExternalDirs(searchPath, resolvedDirs)) {
+    log("searchExternalGrep: searchPath is inside external dirs, skipping to avoid duplication")
     return { output: "", count: 0 }
   }
+
+  log(">>> LAUNCHING external grep search")
+  log("    pattern:       ", JSON.stringify(pattern))
+  log("    include:       ", include ?? "(none)")
+  log("    searchPath:    ", searchPath ?? "(none)")
+  log("    resolvedDirs:  ", JSON.stringify(resolvedDirs))
+  log("    excludePats:   ", JSON.stringify(excludePatterns))
+  log("    maxResults:    ", maxResults)
+  log("    rgPath:        ", rgPath)
 
   const excludeArgs: string[] = []
   for (const p of excludePatterns) {
@@ -303,12 +376,19 @@ async function searchExternalGrep(
 
   try {
     const { stdout, exitCode } = await spawn(args)
+    log("searchExternalGrep: rg exitCode =", exitCode, ", stdout length:", stdout.length)
     if (exitCode === 0 || (exitCode === 2 && stdout.trim())) {
       const entries = parseRgOutput(stdout)
+      log("searchExternalGrep: parsed", entries.length, "entries from rg output")
       if (entries.length === 0) return { output: "", count: 0 }
-      return formatGrepResults(entries, maxResults)
+      const formatted = formatGrepResults(entries, maxResults)
+      log("searchExternalGrep: returning", formatted.count, "formatted results")
+      return formatted
     }
-  } catch {}
+    log("searchExternalGrep: rg exitCode", exitCode, "with no usable output")
+  } catch (e: any) {
+    log("searchExternalGrep: exception:", e.message || e)
+  }
 
   return { output: "", count: 0 }
 }
@@ -320,25 +400,43 @@ async function searchExternalGlob(
   maxResults: number,
   searchPath: string | undefined,
 ): Promise<{ output: string; count: number }> {
+  log("searchExternalGlob: pattern =", JSON.stringify(pattern), ", searchPath =", searchPath)
+  log("searchExternalGlob: resolvedDirs =", JSON.stringify(resolvedDirs))
+
   if (searchPath && isPathInExternalDirs(searchPath, resolvedDirs)) {
+    log("searchExternalGlob: searchPath is inside external dirs, skipping to avoid duplication")
     return { output: "", count: 0 }
   }
+
+  log(">>> LAUNCHING external glob search")
+  log("    pattern:       ", JSON.stringify(pattern))
+  log("    searchPath:    ", searchPath ?? "(none)")
+  log("    resolvedDirs:  ", JSON.stringify(resolvedDirs))
+  log("    excludePats:   ", JSON.stringify(excludePatterns))
+  log("    maxResults:    ", maxResults)
 
   const files: string[] = []
 
   if (typeof Bun !== "undefined" && typeof Bun.Glob !== "undefined") {
+    log("searchExternalGlob: using Bun.Glob engine")
     for (const dir of resolvedDirs) {
       if (files.length >= maxResults) break
       try {
         const glob = new Bun.Glob(pattern)
+        let scanned = 0
         for await (const relPath of glob.scan({ cwd: dir, absolute: false })) {
+          scanned++
           if (files.length >= maxResults) break
           if (shouldExclude(relPath, excludePatterns)) continue
           files.push(path.resolve(dir, relPath))
         }
-      } catch {}
+        log("searchExternalGlob: Bun.Glob scanned", scanned, "entries in", dir, ", accepted:", files.length)
+      } catch (e: any) {
+        log("searchExternalGlob: Bun.Glob error in", dir, ":", e.message || e)
+      }
     }
   } else {
+    log("searchExternalGlob: Bun.Glob unavailable, using fallback fs.walk")
     for (const dir of resolvedDirs) {
       if (files.length >= maxResults) break
       try {
@@ -357,19 +455,31 @@ async function searchExternalGlob(
           }
         }
         walk(dir, "")
-      } catch {}
+        log("searchExternalGlob: fs.walk found", files.length, "files in", dir)
+      } catch (e: any) {
+        log("searchExternalGlob: fs.walk error in", dir, ":", e.message || e)
+      }
     }
   }
 
-  if (files.length === 0) return { output: "", count: 0 }
+  if (files.length === 0) {
+    log("searchExternalGlob: no files found")
+    return { output: "", count: 0 }
+  }
   const limited = files.slice(0, maxResults)
+  log("searchExternalGlob: returning", limited.length, "files")
   return { output: limited.join("\n"), count: limited.length }
 }
 
 async function findZod(): Promise<any> {
+  log("findZod: attempting to import 'zod'...")
   try {
-    return await import("zod")
-  } catch {}
+    const z = await import("zod")
+    log("findZod: direct import succeeded")
+    return z
+  } catch {
+    log("findZod: direct import failed")
+  }
 
   if (typeof Bun !== "undefined" && typeof Bun.resolveSync === "function") {
     const candidates = [
@@ -378,17 +488,22 @@ async function findZod(): Promise<any> {
       path.join(os.homedir(), ".opencode"),
       os.homedir(),
     ]
+    log("findZod: trying Bun.resolveSync with candidates:", JSON.stringify(candidates))
     const seen = new Set<string>()
     for (const dir of candidates) {
       if (seen.has(dir)) continue
       seen.add(dir)
       try {
         const resolved = Bun.resolveSync("zod", dir)
+        log("findZod: Bun.resolveSync found zod at:", resolved)
         return await import(resolved)
-      } catch {}
+      } catch {
+        log("findZod: Bun.resolveSync failed for dir:", dir)
+      }
     }
   }
 
+  log("findZod: zod NOT found anywhere")
   return null
 }
 
@@ -423,12 +538,20 @@ function readFileContent(
 }
 
 const extSearchPlugin = async (ctx: any, options?: Options) => {
+  log("=== ext-search plugin initializing ===")
+  log("ctx.directory =", ctx.directory)
+  log("ctx.worktree =", ctx.worktree)
+  log("ctx keys:", Object.keys(ctx).join(", "))
+  log("platform:", process.platform, ", IS_WIN:", IS_WIN, ", Bun available:", typeof Bun !== "undefined")
+  log("options:", JSON.stringify(options))
+
   const opts = options ?? ({} as Options)
   if (
     !opts.directories ||
     !Array.isArray(opts.directories) ||
     opts.directories.length === 0
   ) {
+    log("plugin init: no directories configured or directories is empty, returning empty hooks")
     return {}
   }
 
@@ -440,15 +563,40 @@ const extSearchPlugin = async (ctx: any, options?: Options) => {
   ]
   const worktree = path.resolve(ctx.worktree)
   const openDir = path.resolve(ctx.directory)
+
+  log("plugin init: worktree (resolved) =", worktree)
+  log("plugin init: openDir (resolved) =", openDir)
+  log("plugin init: opts.root =", opts.root)
+
   const configDir = findPluginConfigDir(openDir)
+  log("plugin init: configDir =", configDir)
+
   const basePath = opts.root
     ? path.resolve(configDir || openDir, opts.root)
     : worktree
+
+  if (opts.root) {
+    log("plugin init: basePath = path.resolve(configDir || openDir, root) = path.resolve(", configDir || openDir, ",", opts.root, ") =", basePath)
+  } else {
+    log("plugin init: no root specified, basePath = worktree =", worktree)
+  }
+
   const resolvedDirs = resolveDirectories(opts.directories, basePath)
 
-  if (resolvedDirs.length === 0) return {}
+  if (resolvedDirs.length === 0) {
+    log("plugin init: resolvedDirs is EMPTY — no valid external directories found. Returning empty hooks.")
+    log("plugin init: this likely means the directories in config don't exist relative to basePath =", basePath)
+    return {}
+  }
 
   const rgPath = findRgBinary()
+  log("plugin init: rgPath =", rgPath)
+  log("plugin init: maxResults =", maxResults)
+  log("plugin init: excludePatterns =", JSON.stringify(excludePatterns))
+  log("plugin init: resolvedDirs =", JSON.stringify(resolvedDirs))
+  log("plugin init: worktree =", worktree)
+  log("plugin init: openDir =", openDir)
+  log("=== ext-search plugin initialized successfully ===")
 
   let depsReadTool: Record<string, any> = {}
   try {
@@ -473,44 +621,78 @@ const extSearchPlugin = async (ctx: any, options?: Options) => {
         },
         async execute(args: any) {
           const resolvedPath = path.resolve(args.filePath)
+          log("deps_read: filePath =", args.filePath, ", resolved =", resolvedPath)
           const isAllowed = resolvedDirs.some(
             (d) => resolvedPath === d || resolvedPath.startsWith(d + path.sep),
           )
+          log("deps_read: isAllowed =", isAllowed, ", checked against dirs:", JSON.stringify(resolvedDirs))
           if (!isAllowed) {
+            log("deps_read: DENIED — path not in external directories")
             return `Error: path "${args.filePath}" is not within configured external directories`
           }
           try {
             if (!fs.existsSync(resolvedPath)) {
+              log("deps_read: file not found:", resolvedPath)
               return `Error: file not found: ${args.filePath}`
             }
             const stat = fs.statSync(resolvedPath)
             if (stat.size > 10 * 1024 * 1024) {
+              log("deps_read: file too large:", stat.size, "bytes")
               return `Error: file is too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Use offset/limit.`
             }
+            log("deps_read: reading file, size =", stat.size, "bytes, offset =", args.offset, ", limit =", args.limit)
             return readFileContent(resolvedPath, args.offset, args.limit)
           } catch (err: any) {
+            log("deps_read: error reading file:", err.message || err)
             return `Error reading file: ${err.message || err}`
           }
         },
       },
     }
-  } catch {}
+    log("plugin init: deps_read tool registered successfully")
+  } catch (e: any) {
+    log("plugin init: deps_read tool NOT registered — zod not found:", e.message || e)
+  }
 
   function isNarrowSearchPath(searchPath: string | undefined): boolean {
-    if (!searchPath) return false
+    if (!searchPath) {
+      log("isNarrowSearchPath: no searchPath → false (will run external search)")
+      return false
+    }
     const normalized = path.resolve(searchPath)
-    return normalized !== worktree && normalized !== openDir
+    const result = normalized !== worktree && normalized !== openDir
+    log("isNarrowSearchPath: searchPath =", searchPath, ", normalized =", normalized)
+    log("isNarrowSearchPath: normalized !== worktree (", worktree, ") =", normalized !== worktree)
+    log("isNarrowSearchPath: normalized !== openDir (", openDir, ") =", normalized !== openDir)
+    log("isNarrowSearchPath: result =", result, result ? "→ NARROW, skipping external search" : "→ BROAD, will run external search")
+    return result
   }
 
   return {
     "tool.execute.after": async (input: any, output: any) => {
-      if (IGNORE_TOOLS.has(input.tool)) return
+      const toolName = input.tool
+      log("tool.execute.after: tool =", toolName)
 
-      if (input.tool === "grep") {
-        if (!rgPath) return
+      if (IGNORE_TOOLS.has(toolName)) {
+        log("tool.execute.after: tool", toolName, "is in IGNORE_TOOLS, skipping")
+        return
+      }
+
+      if (toolName === "grep") {
+        if (!rgPath) {
+          log("tool.execute.after: grep — no rg binary available, skipping external search")
+          return
+        }
         const { pattern, include, path: searchPath } = input.args || {}
-        if (!pattern) return
-        if (isNarrowSearchPath(searchPath)) return
+        log("tool.execute.after: grep — pattern =", JSON.stringify(pattern), ", include =", include, ", searchPath =", searchPath)
+        if (!pattern) {
+          log("tool.execute.after: grep — no pattern, skipping")
+          return
+        }
+        if (isNarrowSearchPath(searchPath)) {
+          log("tool.execute.after: grep — searchPath is narrow, skipping external search")
+          return
+        }
 
         const external = await searchExternalGrep(
           pattern,
@@ -521,22 +703,37 @@ const extSearchPlugin = async (ctx: any, options?: Options) => {
           searchPath,
           rgPath,
         )
-        if (!external.output) return
 
+        if (!external.output) {
+          log("tool.execute.after: grep — external search returned no results")
+          return
+        }
+
+        log("tool.execute.after: grep — external search returned", external.count, "results")
         if (output.output.includes("No files found")) {
+          log("tool.execute.after: grep — built-in search found nothing, replacing output with external results")
           output.output = external.output
         } else {
+          log("tool.execute.after: grep — appending external results to built-in results")
           output.output +=
             "\n\n--- External dependencies ---\n" + external.output
         }
         output.metadata.matches =
           (output.metadata.matches ?? 0) + external.count
+        log("tool.execute.after: grep — total matches in metadata:", output.metadata.matches)
       }
 
-      if (input.tool === "glob") {
+      if (toolName === "glob") {
         const { pattern, path: searchPath } = input.args || {}
-        if (!pattern) return
-        if (isNarrowSearchPath(searchPath)) return
+        log("tool.execute.after: glob — pattern =", JSON.stringify(pattern), ", searchPath =", searchPath)
+        if (!pattern) {
+          log("tool.execute.after: glob — no pattern, skipping")
+          return
+        }
+        if (isNarrowSearchPath(searchPath)) {
+          log("tool.execute.after: glob — searchPath is narrow, skipping external search")
+          return
+        }
 
         const external = await searchExternalGlob(
           pattern,
@@ -545,16 +742,24 @@ const extSearchPlugin = async (ctx: any, options?: Options) => {
           maxResults,
           searchPath,
         )
-        if (!external.output) return
 
+        if (!external.output) {
+          log("tool.execute.after: glob — external search returned no results")
+          return
+        }
+
+        log("tool.execute.after: glob — external search returned", external.count, "results")
         if (output.output.includes("No files found")) {
+          log("tool.execute.after: glob — built-in search found nothing, replacing output with external results")
           output.output = external.output
         } else {
+          log("tool.execute.after: glob — appending external results to built-in results")
           output.output +=
             "\n\n--- External dependencies ---\n" + external.output
         }
         output.metadata.count =
           (output.metadata.count ?? 0) + external.count
+        log("tool.execute.after: glob — total count in metadata:", output.metadata.count)
       }
     },
 
