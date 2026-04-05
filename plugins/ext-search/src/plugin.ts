@@ -6,7 +6,7 @@ import { findPluginConfigDir } from "./config"
 import { resolveDirectories } from "./paths"
 import { searchExternalGrep, searchExternalGlob } from "./search"
 import { createDepsReadTool } from "./deps-read"
-import { calculateBudget, buildHint, mergeExternalOutput } from "./budget"
+import { calculateBudget, buildHint, buildRgFallbackHint, mergeExternalOutput } from "./budget"
 
 const DEFAULT_EXCLUDE_PATTERNS = ["node_modules", ".git", "dist"]
 const DEFAULT_MAX_RESULTS = 50
@@ -204,6 +204,9 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
       if (toolName === "grep" && rgPath) {
         log.debug("dispatching to handleGrep", { tool: toolName })
         await handleGrep(input, output, { ...searchDeps, rgPath })
+      } else if (toolName === "grep") {
+        log.info("rg not found, appending directory hint for grep")
+        output.output += buildRgFallbackHint(searchDeps.resolvedDirs)
       } else if (toolName === "glob") {
         log.debug("dispatching to handleGlob", { tool: toolName })
         await handleGlob(input, output, searchDeps)

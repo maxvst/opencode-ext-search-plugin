@@ -22,4 +22,12 @@ function mergeExternalOutput(mainOutput: string, externalOutput: string): string
   return mainOutput + "\n\n--- External dependencies ---\n" + externalOutput
 }
 
-export { TOTAL_BUDGET, countNonEmptyLines, calculateBudget, buildHint, mergeExternalOutput }
+function buildRgFallbackHint(dirs: string[]): string {
+  return (
+    "\n\n(ripgrep not available. External dependency directories: " +
+    dirs.join(", ") +
+    ".\nUse the deps-read tool or search with glob specifying an external directory path to explore their contents.)"
+  )
+}
+
+export { TOTAL_BUDGET, countNonEmptyLines, calculateBudget, buildHint, buildRgFallbackHint, mergeExternalOutput }

@@ -4,6 +4,7 @@ import {
   countNonEmptyLines,
   calculateBudget,
   buildHint,
+  buildRgFallbackHint,
   mergeExternalOutput,
 } from "../plugins/ext-search/src/budget"
 
@@ -100,5 +101,35 @@ describe("mergeExternalOutput", () => {
     const result = mergeExternalOutput("line1\nline2", "ext1\next2")
     expect(result).toContain("line1\nline2")
     expect(result).toContain("ext1\next2")
+  })
+})
+
+describe("buildRgFallbackHint", () => {
+  it("contains all directory paths", () => {
+    const dirs = ["/absolute/path/shared-utils", "/absolute/path/common-utils"]
+    const hint = buildRgFallbackHint(dirs)
+    expect(hint).toContain("/absolute/path/shared-utils")
+    expect(hint).toContain("/absolute/path/common-utils")
+  })
+
+  it("mentions ripgrep", () => {
+    const hint = buildRgFallbackHint(["/dir"])
+    expect(hint).toContain("ripgrep")
+  })
+
+  it("contains guidance about deps-read and glob", () => {
+    const hint = buildRgFallbackHint(["/dir"])
+    expect(hint).toContain("deps-read tool")
+    expect(hint).toContain("glob")
+  })
+
+  it("joins multiple dirs with comma", () => {
+    const hint = buildRgFallbackHint(["/a", "/b", "/c"])
+    expect(hint).toContain("/a, /b, /c")
+  })
+
+  it("starts with double newline for separation", () => {
+    const hint = buildRgFallbackHint(["/dir"])
+    expect(hint.startsWith("\n\n(")).toBe(true)
   })
 })

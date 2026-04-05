@@ -26,6 +26,13 @@
 
   OpenCode автоматически скачивает `rg` при первом запуске, поэтому отдельная установка обычно не требуется. Поиск файлов (`glob`) не зависит от `rg` — используется нативный `Bun.Glob`.
 
+  Если `rg` не найден, плагин продолжает работу: поиск файлов (`glob`) не затрагивается, а при каждом вызове `grep` к результатам добавляется подсказка с абсолютными путями внешних директорий, чтобы ИИ мог использовать `deps_read` или `glob` для их проверки:
+
+  ```
+  (ripgrep not available. External dependency directories: /home/user/my-monorepo/shared-types, /home/user/my-monorepo/common-utils.
+  Use the deps-read tool or search with glob specifying an external directory path to explore their contents.)
+  ```
+
 ## Установка
 
 ### 1. Скопируйте плагин в директорию команды
