@@ -68,7 +68,7 @@ async function collectGlobBun(
         files.push(path.resolve(dir, relPath))
       }
     } catch (e: any) {
-      log("Bun.Glob error in %s: %s", dir, e.message)
+      log.error("Bun.Glob error", { dir, error: e.message })
     }
   }
   return files
@@ -85,7 +85,7 @@ function collectGlobFsWalk(
     try {
       walkDir(dir, "", files, excludePatterns, maxResults)
     } catch (e: any) {
-      log("fs.walk error in %s: %s", dir, e.message)
+      log.error("fs.walk error", { dir, error: e.message })
     }
   }
   return files
@@ -141,7 +141,7 @@ async function searchExternalGrep(
       return formatGrepResults(entries, maxResults)
     }
   } catch (e: any) {
-    log("grep error: %s", e.message)
+    log.error("grep error", { error: e.message })
   }
 
   return { output: "", count: 0 }

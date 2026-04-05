@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process"
+import { spawnSync } from "node:child_process"
 import os from "node:os"
 import path from "node:path"
 
@@ -23,21 +23,16 @@ export interface ToolEvent {
 }
 
 export function runOpencode(args: string[], cwd: string): OpencodeResult {
-  try {
-    const stdout = execFileSync(OPENCODE, args, {
-      cwd,
-      stdio: ["pipe", "pipe", "pipe"],
-      timeout: 120_000,
-      env: { ...process.env, NO_COLOR: "1" },
-    })
-    return { stdout: stdout.toString(), stderr: "", exitCode: 0 }
-  } catch (err: unknown) {
-    const e = err as { stdout?: Buffer; stderr?: Buffer; status?: number }
-    return {
-      stdout: e.stdout ? e.stdout.toString() : "",
-      stderr: e.stderr ? e.stderr.toString() : "",
-      exitCode: e.status || 1,
-    }
+  const result = spawnSync(OPENCODE, args, {
+    cwd,
+    stdio: ["pipe", "pipe", "pipe"],
+    timeout: 120_000,
+    env: { ...process.env, NO_COLOR: "1" },
+  })
+  return {
+    stdout: result.stdout ? result.stdout.toString() : "",
+    stderr: result.stderr ? result.stderr.toString() : "",
+    exitCode: result.status ?? 1,
   }
 }
 

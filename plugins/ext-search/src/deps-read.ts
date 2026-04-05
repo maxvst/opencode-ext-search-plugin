@@ -51,7 +51,7 @@ async function createDepsReadTool(resolvedDirs: string[]): Promise<Record<string
       },
     }
   } catch {
-    log("deps_read tool not registered: zod not found")
+    log.warn("deps_read tool not registered: zod not found")
     return {}
   }
 }

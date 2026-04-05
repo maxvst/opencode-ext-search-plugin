@@ -1,6 +1,5 @@
 import path from "path"
 import fs from "fs"
-import { log } from "./constants"
 
 function parseRgOutput(
   raw: string,

@@ -1,5 +1,5 @@
 import path from "path"
-import { log, IGNORE_TOOLS } from "./constants"
+import { log, setLogClient, IGNORE_TOOLS } from "./constants"
 import type { Options } from "./constants"
 import { findRgBinary } from "./rg"
 import { findPluginConfigDir } from "./config"
@@ -122,7 +122,8 @@ async function handleGlob(
 }
 
 const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
-  log("ext-search plugin initializing")
+  setLogClient(ctx.client as any)
+  log.info("ext-search plugin initializing")
 
   const opts = validateOptions(options)
   if (!opts) return {}
@@ -133,12 +134,12 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
   const resolvedDirs = resolveDirectories(opts.directories, basePath)
 
   if (!resolvedDirs.length) {
-    log("no valid external directories resolved")
+    log.warn("no valid external directories resolved")
     return {}
   }
 
   const rgPath = findRgBinary()
-  log("initialized: %d dirs, rg=%s", resolvedDirs.length, rgPath ?? "not found")
+  log.info("initialized", { dirs: resolvedDirs.length, rg: rgPath ?? "not found" })
 
   const depsReadTool = await createDepsReadTool(resolvedDirs)
   const searchDeps: SearchDeps = {

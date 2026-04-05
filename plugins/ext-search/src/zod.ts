@@ -29,7 +29,7 @@ async function findZod(): Promise<any> {
     }
   }
 
-  log("zod not found")
+  log.warn("zod not found")
   return null
 }
 

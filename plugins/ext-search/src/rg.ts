@@ -81,7 +81,7 @@ function findRgBinary(): string | null {
     }
   }
 
-  log("rg binary not found")
+  log.warn("rg binary not found")
   return null
 }
 

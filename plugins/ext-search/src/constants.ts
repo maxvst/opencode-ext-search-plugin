@@ -2,10 +2,39 @@ const IS_WIN = process.platform === "win32"
 const RG_BIN = IS_WIN ? "rg.exe" : "rg"
 const DEBUG = !!process.env.EXT_SEARCH_DEBUG
 
-function log(...args: unknown[]): void {
+type LogLevel = "debug" | "info" | "warn" | "error"
+
+interface LogClient {
+  app: {
+    log: (opts: {
+      body: { service: string; level: LogLevel; message: string; extra?: Record<string, unknown> }
+    }) => Promise<any>
+  }
+}
+
+let _client: LogClient | null = null
+
+function setLogClient(client: LogClient): void {
+  _client = client
+}
+
+function _send(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
+  if (_client) {
+    _client.app.log({
+      body: { service: "ext-search", level, message, extra },
+    }).catch(() => {})
+    return
+  }
   if (!DEBUG) return
   const ts = new Date().toISOString().slice(11, 19)
-  console.error(`[ext-search ${ts}]`, ...args)
+  console.error(`[ext-search ${ts}] [${level}]`, message, extra ?? "")
+}
+
+const log = {
+  debug(message: string, extra?: Record<string, unknown>) { _send("debug", message, extra) },
+  info(message: string, extra?: Record<string, unknown>) { _send("info", message, extra) },
+  warn(message: string, extra?: Record<string, unknown>) { _send("warn", message, extra) },
+  error(message: string, extra?: Record<string, unknown>) { _send("error", message, extra) },
 }
 
 const IGNORE_TOOLS = new Set([
@@ -34,5 +63,5 @@ type Options = {
   maxResults?: number
 }
 
-export { IS_WIN, RG_BIN, DEBUG, log, IGNORE_TOOLS }
+export { IS_WIN, RG_BIN, DEBUG, log, setLogClient, IGNORE_TOOLS }
 export type { Options }
