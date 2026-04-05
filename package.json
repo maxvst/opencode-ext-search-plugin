@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "build": "esbuild plugins/ext-search/src/index.ts --bundle --platform=node --format=esm --outfile=plugins/ext-search/dist/index.js",
+    "test": "npm run build && vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "esbuild": "^0.25.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }
