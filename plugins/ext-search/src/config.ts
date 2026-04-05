@@ -1,14 +1,18 @@
 import path from "path"
 import fs from "fs"
 import { fileURLToPath } from "node:url"
+import { log } from "./constants"
 
 function findPluginConfigDir(startDir: string): string | null {
   let pluginDir: string
   try {
     pluginDir = path.dirname(fileURLToPath(import.meta.url))
   } catch {
+    log.warn("findPluginConfigDir: cannot resolve pluginDir from import.meta.url")
     return null
   }
+
+  log.debug("findPluginConfigDir starting", { pluginDir, startDir })
 
   let current = path.resolve(startDir)
   const root = path.parse(current).root
@@ -25,6 +29,7 @@ function findPluginConfigDir(startDir: string): string | null {
           if (!Array.isArray(entry) || typeof entry[0] !== "string") continue
           const resolved = path.resolve(current, entry[0])
           if (resolved === pluginDir || pluginDir.startsWith(resolved + path.sep)) {
+            log.debug("findPluginConfigDir found config", { configDir: current, pluginSpec: entry[0], resolved })
             return current
           }
         }
@@ -35,6 +40,7 @@ function findPluginConfigDir(startDir: string): string | null {
     current = path.dirname(current)
   }
 
+  log.warn("findPluginConfigDir: no config found referencing this plugin", { startDir, pluginDir })
   return null
 }
 

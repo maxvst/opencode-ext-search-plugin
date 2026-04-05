@@ -1,7 +1,10 @@
+import { log } from "./constants"
+
 async function spawn(
   args: string[],
   cwd?: string,
 ): Promise<{ stdout: string; exitCode: number }> {
+  log.debug("spawn", { cmd: args[0], argsCount: args.length })
   try {
     if (typeof Bun !== "undefined" && typeof Bun.spawn === "function") {
       const proc = Bun.spawn(args, {

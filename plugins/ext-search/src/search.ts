@@ -98,8 +98,10 @@ async function collectGlobResults(
   maxResults: number,
 ): Promise<string[]> {
   if (typeof Bun !== "undefined" && typeof Bun.Glob !== "undefined") {
+    log.debug("using Bun.Glob for glob search")
     return collectGlobBun(pattern, dirs, excludePatterns, maxResults)
   }
+  log.debug("using fs.walk fallback for glob search")
   return collectGlobFsWalk(dirs, excludePatterns, maxResults)
 }
 
@@ -112,7 +114,9 @@ async function searchExternalGrep(
   searchPath: string | undefined,
   rgPath: string,
 ): Promise<{ output: string; count: number }> {
+  log.debug("searchExternalGrep", { pattern, include: include ?? "(none)", dirs: resolvedDirs.length, maxResults })
   if (searchPath && isPathInExternalDirs(searchPath, resolvedDirs)) {
+    log.debug("searchPath already in external dirs, skipping grep", { searchPath })
     return { output: "", count: 0 }
   }
 
@@ -132,12 +136,15 @@ async function searchExternalGrep(
   ]
   if (include) args.push("--glob", include)
   args.push("--regexp", pattern, ...resolvedDirs)
+  log.debug("rg args", { args })
 
   try {
     const { stdout, exitCode } = await spawn(args)
+    log.debug("rg spawn result", { exitCode, stdoutLen: stdout.length })
     if (exitCode === 0 || (exitCode === 2 && stdout.trim())) {
       const entries = parseRgOutput(stdout)
       if (!entries.length) return { output: "", count: 0 }
+      log.info("grep found matches", { matches: entries.length, pattern })
       return formatGrepResults(entries, maxResults)
     }
   } catch (e: any) {
@@ -154,7 +161,9 @@ async function searchExternalGlob(
   maxResults: number,
   searchPath: string | undefined,
 ): Promise<{ output: string; count: number }> {
+  log.debug("searchExternalGlob", { pattern, dirs: resolvedDirs.length, maxResults })
   if (searchPath && isPathInExternalDirs(searchPath, resolvedDirs)) {
+    log.debug("searchPath already in external dirs, skipping glob", { searchPath })
     return { output: "", count: 0 }
   }
 
@@ -166,6 +175,7 @@ async function searchExternalGlob(
   )
   if (!files.length) return { output: "", count: 0 }
 
+  log.info("glob found files", { count: files.length, pattern })
   const limited = files.slice(0, maxResults)
   return { output: limited.join("\n"), count: limited.length }
 }

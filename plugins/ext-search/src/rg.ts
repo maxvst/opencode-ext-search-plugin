@@ -61,6 +61,7 @@ function findRgBinary(): string | null {
       try {
         if (fs.existsSync(candidate)) {
           cachedRgPath = candidate
+          log.debug("rg binary found in PATH", { path: candidate })
           return cachedRgPath
         }
       } catch {
@@ -74,6 +75,7 @@ function findRgBinary(): string | null {
     try {
       if (fs.existsSync(candidate)) {
         cachedRgPath = candidate
+        log.debug("rg binary found in opencode paths", { path: candidate })
         return cachedRgPath
       }
     } catch {

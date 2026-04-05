@@ -1,8 +1,10 @@
 import path from "path"
 import os from "os"
 import fs from "fs"
+import { log } from "./constants"
 
 function resolveDirectories(dirs: string[], basePath: string): string[] {
+  log.debug("resolveDirectories", { dirs, basePath })
   const result: string[] = []
   for (const d of dirs) {
     let resolved: string
@@ -15,9 +17,12 @@ function resolveDirectories(dirs: string[], basePath: string): string[] {
     }
     try {
       const stat = fs.statSync(resolved)
-      if (stat.isDirectory()) result.push(resolved)
+      if (stat.isDirectory()) {
+        result.push(resolved)
+        log.debug("directory resolved", { dir: d, resolved })
+      }
     } catch {
-      // skip inaccessible directories
+      log.warn("directory not found, skipping", { dir: d, resolved })
     }
   }
   return result
@@ -25,9 +30,11 @@ function resolveDirectories(dirs: string[], basePath: string): string[] {
 
 function isPathInExternalDirs(searchPath: string, resolvedDirs: string[]): boolean {
   const normalized = path.resolve(searchPath)
-  return resolvedDirs.some(
+  const result = resolvedDirs.some(
     (d) => normalized === d || normalized.startsWith(d + path.sep),
   )
+  log.debug("isPathInExternalDirs", { searchPath, normalized, resolvedDirs, result })
+  return result
 }
 
 export { resolveDirectories, isPathInExternalDirs }

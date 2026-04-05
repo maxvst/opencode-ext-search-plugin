@@ -37,7 +37,11 @@ function validateOptions(
   options?: Options,
 ): (Required<Omit<Options, "root">> & { root?: string }) | null {
   const opts = options ?? ({} as Options)
-  if (!opts.directories?.length) return null
+  if (!opts.directories?.length) {
+    log.warn("no directories configured, plugin inactive")
+    return null
+  }
+  log.debug("options validated", { directories: opts.directories, root: opts.root })
   return {
     directories: opts.directories,
     root: opts.root,
@@ -53,7 +57,9 @@ function resolveBasePath(
 ): string {
   if (!root) return worktree
   const configDir = findPluginConfigDir(openDir)
-  return path.resolve(configDir || openDir, root)
+  const resolved = path.resolve(configDir || openDir, root)
+  log.debug("basePath resolved", { root, configDir: configDir ?? openDir, resolved })
+  return resolved
 }
 
 function isNarrowSearchPath(
@@ -63,7 +69,9 @@ function isNarrowSearchPath(
 ): boolean {
   if (!searchPath) return false
   const normalized = path.resolve(searchPath)
-  return normalized !== worktree && normalized !== openDir
+  const narrow = normalized !== worktree && normalized !== openDir
+  log.debug("isNarrowSearchPath", { searchPath, normalized, worktree, openDir, narrow })
+  return narrow
 }
 
 function mergeResults(
@@ -72,6 +80,7 @@ function mergeResults(
   metadataKey: string,
 ): void {
   if (!external.output) return
+  log.debug("merging external results", { metadataKey, count: external.count })
   output.output = output.output.includes("No files found")
     ? external.output
     : output.output +
@@ -88,6 +97,7 @@ async function handleGrep(
 ): Promise<void> {
   const { pattern, include, path: searchPath } = input.args || {}
   if (!pattern) return
+  log.debug("handleGrep", { pattern, include, searchPath: searchPath ?? "(none)" })
   if (isNarrowSearchPath(searchPath, deps.worktree, deps.openDir)) return
 
   const external = await searchExternalGrep(
@@ -99,6 +109,7 @@ async function handleGrep(
     searchPath,
     deps.rgPath,
   )
+  log.debug("handleGrep result", { count: external.count })
   mergeResults(output, external, "matches")
 }
 
@@ -109,6 +120,7 @@ async function handleGlob(
 ): Promise<void> {
   const { pattern, path: searchPath } = input.args || {}
   if (!pattern) return
+  log.debug("handleGlob", { pattern, searchPath: searchPath ?? "(none)" })
   if (isNarrowSearchPath(searchPath, deps.worktree, deps.openDir)) return
 
   const external = await searchExternalGlob(
@@ -118,20 +130,26 @@ async function handleGlob(
     deps.maxResults,
     searchPath,
   )
+  log.debug("handleGlob result", { count: external.count })
   mergeResults(output, external, "count")
 }
 
 const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
   setLogClient(ctx.client as any)
-  log.info("ext-search plugin initializing")
+  log.info("ext-search plugin initializing", { directory: ctx.directory, worktree: ctx.worktree })
 
   const opts = validateOptions(options)
   if (!opts) return {}
 
   const worktree = path.resolve(ctx.worktree)
   const openDir = path.resolve(ctx.directory)
+  log.debug("resolved context paths", { worktree, openDir })
+
   const basePath = resolveBasePath(opts.root, openDir, worktree)
+  log.info("basePath computed", { basePath, root: opts.root })
+
   const resolvedDirs = resolveDirectories(opts.directories, basePath)
+  log.info("resolvedDirs", { dirs: resolvedDirs })
 
   if (!resolvedDirs.length) {
     log.warn("no valid external directories resolved")
@@ -153,11 +171,16 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
   return {
     "tool.execute.after": async (input: any, output: any) => {
       const toolName = input.tool as string
-      if (IGNORE_TOOLS.has(toolName)) return
+      if (IGNORE_TOOLS.has(toolName)) {
+        log.debug("tool ignored", { tool: toolName })
+        return
+      }
 
       if (toolName === "grep" && rgPath) {
+        log.debug("dispatching to handleGrep", { tool: toolName })
         await handleGrep(input, output, { ...searchDeps, rgPath })
       } else if (toolName === "glob") {
+        log.debug("dispatching to handleGlob", { tool: toolName })
         await handleGlob(input, output, searchDeps)
       }
     },
