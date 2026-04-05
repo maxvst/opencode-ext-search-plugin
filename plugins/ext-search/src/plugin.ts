@@ -6,6 +6,7 @@ import { findPluginConfigDir } from "./config"
 import { resolveDirectories } from "./paths"
 import { searchExternalGrep, searchExternalGlob } from "./search"
 import { createDepsReadTool } from "./deps-read"
+import { calculateBudget, buildHint, mergeExternalOutput } from "./budget"
 
 const DEFAULT_EXCLUDE_PATTERNS = ["node_modules", ".git", "dist"]
 const DEFAULT_MAX_RESULTS = 50
@@ -14,11 +15,6 @@ interface PluginContext {
   directory: string
   worktree: string
   [key: string]: unknown
-}
-
-interface ExternalResult {
-  output: string
-  count: number
 }
 
 interface SearchDeps {
@@ -74,20 +70,13 @@ function isNarrowSearchPath(
   return narrow
 }
 
-function mergeResults(
-  output: { output: string; metadata: Record<string, unknown> },
-  external: ExternalResult,
+function applyMetadata(
+  output: { metadata: Record<string, unknown> },
+  count: number,
   metadataKey: string,
 ): void {
-  if (!external.output) return
-  log.debug("merging external results", { metadataKey, count: external.count })
-  output.output = output.output.includes("No files found")
-    ? external.output
-    : output.output +
-      "\n\n--- External dependencies ---\n" +
-      external.output
   const prev = (output.metadata[metadataKey] as number | undefined) ?? 0
-  output.metadata[metadataKey] = prev + external.count
+  output.metadata[metadataKey] = prev + count
 }
 
 async function handleGrep(
@@ -100,17 +89,35 @@ async function handleGrep(
   log.debug("handleGrep", { pattern, include, searchPath: searchPath ?? "(none)" })
   if (isNarrowSearchPath(searchPath, deps.worktree, deps.openDir)) return
 
+  const budget = calculateBudget(output.output)
+  log.debug("handleGrep budget", { budget })
+
+  if (budget === 0) {
+    log.info("handleGrep: budget exhausted, skipping external search")
+    output.output += buildHint(deps.resolvedDirs)
+    return
+  }
+
+  const effectiveMax = Math.min(budget, deps.maxResults)
   const external = await searchExternalGrep(
     pattern,
     include,
     deps.resolvedDirs,
     deps.excludePatterns,
-    deps.maxResults,
+    effectiveMax,
     searchPath,
     deps.rgPath,
   )
   log.debug("handleGrep result", { count: external.count })
-  mergeResults(output, external, "matches")
+
+  if (!external.output) return
+
+  output.output = mergeExternalOutput(output.output, external.output)
+  applyMetadata(output, external.count, "matches")
+
+  if (external.count >= budget) {
+    output.output += buildHint(deps.resolvedDirs)
+  }
 }
 
 async function handleGlob(
@@ -123,15 +130,33 @@ async function handleGlob(
   log.debug("handleGlob", { pattern, searchPath: searchPath ?? "(none)" })
   if (isNarrowSearchPath(searchPath, deps.worktree, deps.openDir)) return
 
+  const budget = calculateBudget(output.output)
+  log.debug("handleGlob budget", { budget })
+
+  if (budget === 0) {
+    log.info("handleGlob: budget exhausted, skipping external search")
+    output.output += buildHint(deps.resolvedDirs)
+    return
+  }
+
+  const effectiveMax = Math.min(budget, deps.maxResults)
   const external = await searchExternalGlob(
     pattern,
     deps.resolvedDirs,
     deps.excludePatterns,
-    deps.maxResults,
+    effectiveMax,
     searchPath,
   )
   log.debug("handleGlob result", { count: external.count })
-  mergeResults(output, external, "count")
+
+  if (!external.output) return
+
+  output.output = mergeExternalOutput(output.output, external.output)
+  applyMetadata(output, external.count, "count")
+
+  if (external.count >= budget) {
+    output.output += buildHint(deps.resolvedDirs)
+  }
 }
 
 const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
