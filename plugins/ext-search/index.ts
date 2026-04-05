@@ -1,6 +1,7 @@
 import path from "path"
 import os from "os"
 import fs from "fs"
+import { fileURLToPath } from "node:url"
 
 const IS_WIN = process.platform === "win32"
 const RG_BIN = IS_WIN ? "rg.exe" : "rg"
@@ -104,6 +105,36 @@ function findRgBinary(): string | null {
     } catch {}
   }
 
+  return null
+}
+
+function findPluginConfigDir(startDir: string): string | null {
+  let pluginDir: string
+  try {
+    pluginDir = path.dirname(fileURLToPath(import.meta.url))
+  } catch {
+    return null
+  }
+
+  let current = path.resolve(startDir)
+  const root = path.parse(current).root
+
+  while (current !== root) {
+    for (const name of ["opencode.json", "opencode.jsonc"]) {
+      const configPath = path.join(current, name)
+      try {
+        const raw = fs.readFileSync(configPath, "utf-8")
+        const config = JSON.parse(raw)
+        if (!Array.isArray(config.plugin)) continue
+        for (const entry of config.plugin) {
+          if (!Array.isArray(entry) || typeof entry[0] !== "string") continue
+          const resolved = path.resolve(current, entry[0])
+          if (resolved === pluginDir) return current
+        }
+      } catch {}
+    }
+    current = path.dirname(current)
+  }
   return null
 }
 
@@ -409,8 +440,9 @@ const extSearchPlugin = async (ctx: any, options?: Options) => {
   ]
   const worktree = path.resolve(ctx.worktree)
   const openDir = path.resolve(ctx.directory)
+  const configDir = findPluginConfigDir(openDir)
   const basePath = opts.root
-    ? path.resolve(openDir, opts.root)
+    ? path.resolve(configDir || openDir, opts.root)
     : worktree
   const resolvedDirs = resolveDirectories(opts.directories, basePath)
 
