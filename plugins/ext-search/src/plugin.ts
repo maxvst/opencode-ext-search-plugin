@@ -3,179 +3,161 @@ import { log, IGNORE_TOOLS } from "./constants"
 import type { Options } from "./constants"
 import { findRgBinary } from "./rg"
 import { findPluginConfigDir } from "./config"
-import { resolveDirectories, isPathInExternalDirs } from "./paths"
+import { resolveDirectories } from "./paths"
 import { searchExternalGrep, searchExternalGlob } from "./search"
 import { createDepsReadTool } from "./deps-read"
 
-const extSearchPlugin = async (ctx: any, options?: Options) => {
-  log("=== ext-search plugin initializing ===")
-  log("ctx.directory =", ctx.directory)
-  log("ctx.worktree =", ctx.worktree)
-  log("ctx keys:", Object.keys(ctx).join(", "))
-  log("platform:", process.platform, ", IS_WIN:", process.platform === "win32", ", Bun available:", typeof Bun !== "undefined")
-  log("options:", JSON.stringify(options))
+const DEFAULT_EXCLUDE_PATTERNS = ["node_modules", ".git", "dist"]
+const DEFAULT_MAX_RESULTS = 50
 
+interface PluginContext {
+  directory: string
+  worktree: string
+  [key: string]: unknown
+}
+
+interface ExternalResult {
+  output: string
+  count: number
+}
+
+interface SearchDeps {
+  resolvedDirs: string[]
+  excludePatterns: string[]
+  maxResults: number
+  worktree: string
+  openDir: string
+}
+
+interface GrepDeps extends SearchDeps {
+  rgPath: string
+}
+
+function validateOptions(
+  options?: Options,
+): (Required<Omit<Options, "root">> & { root?: string }) | null {
   const opts = options ?? ({} as Options)
-  if (
-    !opts.directories ||
-    !Array.isArray(opts.directories) ||
-    opts.directories.length === 0
-  ) {
-    log("plugin init: no directories configured or directories is empty, returning empty hooks")
-    return {}
+  if (!opts.directories?.length) return null
+  return {
+    directories: opts.directories,
+    root: opts.root,
+    excludePatterns: opts.excludePatterns ?? DEFAULT_EXCLUDE_PATTERNS,
+    maxResults: opts.maxResults ?? DEFAULT_MAX_RESULTS,
   }
+}
 
-  const maxResults = opts.maxResults ?? 50
-  const excludePatterns = opts.excludePatterns ?? [
-    "node_modules",
-    ".git",
-    "dist",
-  ]
+function resolveBasePath(
+  root: string | undefined,
+  openDir: string,
+  worktree: string,
+): string {
+  if (!root) return worktree
+  const configDir = findPluginConfigDir(openDir)
+  return path.resolve(configDir || openDir, root)
+}
+
+function isNarrowSearchPath(
+  searchPath: string | undefined,
+  worktree: string,
+  openDir: string,
+): boolean {
+  if (!searchPath) return false
+  const normalized = path.resolve(searchPath)
+  return normalized !== worktree && normalized !== openDir
+}
+
+function mergeResults(
+  output: { output: string; metadata: Record<string, unknown> },
+  external: ExternalResult,
+  metadataKey: string,
+): void {
+  if (!external.output) return
+  output.output = output.output.includes("No files found")
+    ? external.output
+    : output.output +
+      "\n\n--- External dependencies ---\n" +
+      external.output
+  const prev = (output.metadata[metadataKey] as number | undefined) ?? 0
+  output.metadata[metadataKey] = prev + external.count
+}
+
+async function handleGrep(
+  input: any,
+  output: { output: string; metadata: Record<string, unknown> },
+  deps: GrepDeps,
+): Promise<void> {
+  const { pattern, include, path: searchPath } = input.args || {}
+  if (!pattern) return
+  if (isNarrowSearchPath(searchPath, deps.worktree, deps.openDir)) return
+
+  const external = await searchExternalGrep(
+    pattern,
+    include,
+    deps.resolvedDirs,
+    deps.excludePatterns,
+    deps.maxResults,
+    searchPath,
+    deps.rgPath,
+  )
+  mergeResults(output, external, "matches")
+}
+
+async function handleGlob(
+  input: any,
+  output: { output: string; metadata: Record<string, unknown> },
+  deps: SearchDeps,
+): Promise<void> {
+  const { pattern, path: searchPath } = input.args || {}
+  if (!pattern) return
+  if (isNarrowSearchPath(searchPath, deps.worktree, deps.openDir)) return
+
+  const external = await searchExternalGlob(
+    pattern,
+    deps.resolvedDirs,
+    deps.excludePatterns,
+    deps.maxResults,
+    searchPath,
+  )
+  mergeResults(output, external, "count")
+}
+
+const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
+  log("ext-search plugin initializing")
+
+  const opts = validateOptions(options)
+  if (!opts) return {}
+
   const worktree = path.resolve(ctx.worktree)
   const openDir = path.resolve(ctx.directory)
-
-  log("plugin init: worktree (resolved) =", worktree)
-  log("plugin init: openDir (resolved) =", openDir)
-  log("plugin init: opts.root =", opts.root)
-
-  const configDir = findPluginConfigDir(openDir)
-  log("plugin init: configDir =", configDir)
-
-  const basePath = opts.root
-    ? path.resolve(configDir || openDir, opts.root)
-    : worktree
-
-  if (opts.root) {
-    log("plugin init: basePath = path.resolve(configDir || openDir, root) = path.resolve(", configDir || openDir, ",", opts.root, ") =", basePath)
-  } else {
-    log("plugin init: no root specified, basePath = worktree =", worktree)
-  }
-
+  const basePath = resolveBasePath(opts.root, openDir, worktree)
   const resolvedDirs = resolveDirectories(opts.directories, basePath)
 
-  if (resolvedDirs.length === 0) {
-    log("plugin init: resolvedDirs is EMPTY — no valid external directories found. Returning empty hooks.")
-    log("plugin init: this likely means the directories in config don't exist relative to basePath =", basePath)
+  if (!resolvedDirs.length) {
+    log("no valid external directories resolved")
     return {}
   }
 
   const rgPath = findRgBinary()
-  log("plugin init: rgPath =", rgPath)
-  log("plugin init: maxResults =", maxResults)
-  log("plugin init: excludePatterns =", JSON.stringify(excludePatterns))
-  log("plugin init: resolvedDirs =", JSON.stringify(resolvedDirs))
-  log("plugin init: worktree =", worktree)
-  log("plugin init: openDir =", openDir)
-  log("=== ext-search plugin initialized successfully ===")
+  log("initialized: %d dirs, rg=%s", resolvedDirs.length, rgPath ?? "not found")
 
   const depsReadTool = await createDepsReadTool(resolvedDirs)
-
-  function isNarrowSearchPath(searchPath: string | undefined): boolean {
-    if (!searchPath) {
-      log("isNarrowSearchPath: no searchPath → false (will run external search)")
-      return false
-    }
-    const normalized = path.resolve(searchPath)
-    const result = normalized !== worktree && normalized !== openDir
-    log("isNarrowSearchPath: searchPath =", searchPath, ", normalized =", normalized)
-    log("isNarrowSearchPath: normalized !== worktree (", worktree, ") =", normalized !== worktree)
-    log("isNarrowSearchPath: normalized !== openDir (", openDir, ") =", normalized !== openDir)
-    log("isNarrowSearchPath: result =", result, result ? "→ NARROW, skipping external search" : "→ BROAD, will run external search")
-    return result
+  const searchDeps: SearchDeps = {
+    resolvedDirs,
+    excludePatterns: opts.excludePatterns,
+    maxResults: opts.maxResults,
+    worktree,
+    openDir,
   }
 
   return {
     "tool.execute.after": async (input: any, output: any) => {
-      const toolName = input.tool
-      log("tool.execute.after: tool =", toolName)
+      const toolName = input.tool as string
+      if (IGNORE_TOOLS.has(toolName)) return
 
-      if (IGNORE_TOOLS.has(toolName)) {
-        log("tool.execute.after: tool", toolName, "is in IGNORE_TOOLS, skipping")
-        return
-      }
-
-      if (toolName === "grep") {
-        if (!rgPath) {
-          log("tool.execute.after: grep — no rg binary available, skipping external search")
-          return
-        }
-        const { pattern, include, path: searchPath } = input.args || {}
-        log("tool.execute.after: grep — pattern =", JSON.stringify(pattern), ", include =", include, ", searchPath =", searchPath)
-        if (!pattern) {
-          log("tool.execute.after: grep — no pattern, skipping")
-          return
-        }
-        if (isNarrowSearchPath(searchPath)) {
-          log("tool.execute.after: grep — searchPath is narrow, skipping external search")
-          return
-        }
-
-        const external = await searchExternalGrep(
-          pattern,
-          include,
-          resolvedDirs,
-          excludePatterns,
-          maxResults,
-          searchPath,
-          rgPath,
-        )
-
-        if (!external.output) {
-          log("tool.execute.after: grep — external search returned no results")
-          return
-        }
-
-        log("tool.execute.after: grep — external search returned", external.count, "results")
-        if (output.output.includes("No files found")) {
-          log("tool.execute.after: grep — built-in search found nothing, replacing output with external results")
-          output.output = external.output
-        } else {
-          log("tool.execute.after: grep — appending external results to built-in results")
-          output.output +=
-            "\n\n--- External dependencies ---\n" + external.output
-        }
-        output.metadata.matches =
-          (output.metadata.matches ?? 0) + external.count
-        log("tool.execute.after: grep — total matches in metadata:", output.metadata.matches)
-      }
-
-      if (toolName === "glob") {
-        const { pattern, path: searchPath } = input.args || {}
-        log("tool.execute.after: glob — pattern =", JSON.stringify(pattern), ", searchPath =", searchPath)
-        if (!pattern) {
-          log("tool.execute.after: glob — no pattern, skipping")
-          return
-        }
-        if (isNarrowSearchPath(searchPath)) {
-          log("tool.execute.after: glob — searchPath is narrow, skipping external search")
-          return
-        }
-
-        const external = await searchExternalGlob(
-          pattern,
-          resolvedDirs,
-          excludePatterns,
-          maxResults,
-          searchPath,
-        )
-
-        if (!external.output) {
-          log("tool.execute.after: glob — external search returned no results")
-          return
-        }
-
-        log("tool.execute.after: glob — external search returned", external.count, "results")
-        if (output.output.includes("No files found")) {
-          log("tool.execute.after: glob — built-in search found nothing, replacing output with external results")
-          output.output = external.output
-        } else {
-          log("tool.execute.after: glob — appending external results to built-in results")
-          output.output +=
-            "\n\n--- External dependencies ---\n" + external.output
-        }
-        output.metadata.count =
-          (output.metadata.count ?? 0) + external.count
-        log("tool.execute.after: glob — total count in metadata:", output.metadata.count)
+      if (toolName === "grep" && rgPath) {
+        await handleGrep(input, output, { ...searchDeps, rgPath })
+      } else if (toolName === "glob") {
+        await handleGlob(input, output, searchDeps)
       }
     },
 

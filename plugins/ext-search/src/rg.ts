@@ -38,10 +38,6 @@ function getOpenCodeBinPaths(): string[] {
       paths.push(path.join(prefix, suffix))
     }
   }
-  log("getOpenCodeBinPaths: platform=%s, prefixes=%o, candidate paths:", process.platform, prefixes)
-  for (const p of paths) {
-    log("  ", p)
-  }
   return paths
 }
 
@@ -49,10 +45,7 @@ let cachedRgPath: string | null = null
 let rgPathResolved = false
 
 function findRgBinary(): string | null {
-  if (rgPathResolved) {
-    log("findRgBinary: returning cached result:", cachedRgPath)
-    return cachedRgPath
-  }
+  if (rgPathResolved) return cachedRgPath
   rgPathResolved = true
 
   const pathEnv = process.env.PATH || ""
@@ -61,7 +54,6 @@ function findRgBinary(): string | null {
     ? (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";")
     : [""]
 
-  log("findRgBinary: searching in PATH...")
   for (const dir of pathEnv.split(pathSep)) {
     if (!dir) continue
     for (const ext of pathExt) {
@@ -69,30 +61,27 @@ function findRgBinary(): string | null {
       try {
         if (fs.existsSync(candidate)) {
           cachedRgPath = candidate
-          log("findRgBinary: found rg in PATH:", candidate)
           return cachedRgPath
         }
       } catch {
-        log("findRgBinary: error checking PATH candidate:", candidate)
+        // skip inaccessible paths
       }
     }
   }
 
-  log("findRgBinary: not in PATH, searching OpenCode bin directories...")
   for (const dir of getOpenCodeBinPaths()) {
     const candidate = path.join(dir, RG_BIN)
     try {
       if (fs.existsSync(candidate)) {
         cachedRgPath = candidate
-        log("findRgBinary: found rg in OpenCode bin dir:", candidate)
         return cachedRgPath
       }
     } catch {
-      log("findRgBinary: error checking OpenCode bin candidate:", candidate)
+      // skip inaccessible paths
     }
   }
 
-  log("findRgBinary: rg NOT found anywhere")
+  log("rg binary not found")
   return null
 }
 

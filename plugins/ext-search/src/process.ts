@@ -1,10 +1,7 @@
-import { log } from "./constants"
-
 async function spawn(
   args: string[],
   cwd?: string,
 ): Promise<{ stdout: string; exitCode: number }> {
-  log("spawn: command:", args[0], "args:", args.slice(1).join(" "), cwd ? "cwd=" + cwd : "(no cwd)")
   try {
     if (typeof Bun !== "undefined" && typeof Bun.spawn === "function") {
       const proc = Bun.spawn(args, {
@@ -21,11 +18,10 @@ async function spawn(
       }
       const stdout = Buffer.concat(chunks).toString()
       const exitCode = await proc.exited
-      log("spawn: Bun.spawn exited with code", exitCode, ", stdout length:", stdout.length)
       return { stdout, exitCode }
     }
-  } catch (e: any) {
-    log("spawn: Bun.spawn failed:", e.message || e)
+  } catch {
+    // Bun.spawn unavailable, fallback to child_process
   }
 
   try {
@@ -35,10 +31,8 @@ async function spawn(
       maxBuffer: 10 * 1024 * 1024,
       ...(cwd ? { cwd } : {}),
     })
-    log("spawn: execFileSync succeeded, stdout length:", stdout.length)
     return { stdout, exitCode: 0 }
   } catch (e: any) {
-    log("spawn: execFileSync failed:", e.message || e, ", exitCode:", e.status)
     return { stdout: e.stdout || "", exitCode: e.status || 1 }
   }
 }
