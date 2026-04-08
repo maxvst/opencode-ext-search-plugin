@@ -10,5 +10,11 @@
     "rootDir": ".",
     "types": ["vitest/globals"]
   },
-  "include": ["tests/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "tests/**/*.ts",
+    "plugins/ext-search/src/**/*.ts",
+    "vitest.config.ts",
+    "vitest.config.integration.ts",
+    "vitest.config.e2e.ts"
+  ]
 }

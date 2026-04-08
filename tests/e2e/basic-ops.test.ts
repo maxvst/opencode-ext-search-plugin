@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
-import { getTestDirs } from "./setup"
-import { runOpencodeJson, findToolEvents } from "./helpers"
+import { getTestDirs } from "../setup"
+import { runOpencodeJson, findToolEvents } from "../helpers"
 
 describe("basic ops", () => {
   it("executes basic bash command in test dir", () => {

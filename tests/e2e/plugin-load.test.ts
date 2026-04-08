@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
-import { getTestDirs } from "./setup"
-import { runOpencode } from "./helpers"
+import { getTestDirs } from "../setup"
+import { runOpencode } from "../helpers"
 
 describe("plugin loading", () => {
   it("loads plugin without errors", () => {

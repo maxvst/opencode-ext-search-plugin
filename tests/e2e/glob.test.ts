@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
-import { getTestDirs } from "./setup"
-import { runOpencodeJson, findToolEvents, getToolNames } from "./helpers"
+import { getTestDirs } from "../setup"
+import { runOpencodeJson, findToolEvents, getToolNames } from "../helpers"
 
 describe("glob interception", () => {
   it("finds TypeScript files in external dependencies", ({ skip }) => {

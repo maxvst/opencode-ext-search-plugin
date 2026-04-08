@@ -2,8 +2,8 @@ import fs from "node:fs"
 import path from "node:path"
 import os from "node:os"
 import { describe, it, expect } from "vitest"
-import { getTestDirs } from "./setup"
-import { runOpencodeJson, findToolEvents, getToolNames } from "./helpers"
+import { getTestDirs } from "../setup"
+import { runOpencodeJson, findToolEvents, getToolNames } from "../helpers"
 
 function getLogDir(): string {
   return path.join(

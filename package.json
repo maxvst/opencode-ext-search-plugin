@@ -4,8 +4,12 @@
   "type": "module",
   "scripts": {
     "build": "esbuild plugins/ext-search/src/index.ts --bundle --platform=node --format=esm --outfile=plugins/ext-search/dist/index.js",
-    "test": "npm run build && vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:integration": "npm run build && vitest run --config vitest.config.integration.ts",
+    "test:e2e": "npm run build && vitest run --config vitest.config.e2e.ts",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

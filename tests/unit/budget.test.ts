@@ -6,7 +6,7 @@ import {
   buildHint,
   buildRgFallbackHint,
   mergeExternalOutput,
-} from "../plugins/ext-search/src/budget"
+} from "../../plugins/ext-search/src/budget"
 
 describe("countNonEmptyLines", () => {
   it("returns 0 for empty string", () => {
