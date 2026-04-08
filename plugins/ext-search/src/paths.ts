@@ -1,7 +1,8 @@
 import path from "path"
 import os from "os"
 import fs from "fs"
-import { log } from "./constants"
+import { log } from "./logging"
+import { findPluginConfigDir } from "./config"
 
 function resolveDirectories(dirs: string[], basePath: string): string[] {
   log.debug("resolveDirectories", { dirs, basePath })
@@ -37,4 +38,16 @@ function isPathInExternalDirs(searchPath: string, resolvedDirs: string[]): boole
   return result
 }
 
-export { resolveDirectories, isPathInExternalDirs }
+function resolveBasePath(
+  root: string | undefined,
+  openDir: string,
+  worktree: string,
+): string {
+  if (!root) return worktree
+  const configDir = findPluginConfigDir(openDir)
+  const resolved = path.resolve(configDir || openDir, root)
+  log.debug("basePath resolved", { root, configDir: configDir ?? openDir, resolved })
+  return resolved
+}
+
+export { resolveDirectories, isPathInExternalDirs, resolveBasePath }
