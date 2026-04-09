@@ -37,7 +37,7 @@
 
 ### 1. Скопируйте плагин в директорию команды
 
-Поместите директорию `plugins/ext-search/` в `.opencode/plugins/` внутри директории вашей команды:
+Соберите плагин (`npm run build`) и поместите артефакты в `.opencode/plugins/ext-search/` внутри директории команды:
 
 ```
 монорепа/
@@ -49,7 +49,7 @@
     │   └── plugins/
     │       └── ext-search/
     │           ├── package.json
-    │           └── index.ts
+    │           └── index.js     ← из plugins/ext-search/dist
     └── my-app/           ← подпроект, открываемый в OpenCode
 ```
 
@@ -73,7 +73,27 @@
         "maxResults": 50
       }
     ]
-  ],
+  ]
+}
+```
+
+### 3. Настройте разрешения для внешних директорий
+
+Для работы встроенного инструмента `read` с файлами из внешних директорий необходимо задать `permission.external_directory`. Поскольку эта секция содержит абсолютные пути, специфичные для машины разработчика, её **не следует** помещать в проектный `opencode.json` — вместо этого используйте **глобальный конфиг** OpenCode.
+
+Путь к глобальному конфигу зависит от платформы:
+
+| Платформа | Путь |
+|---|---|
+| Linux | `~/.config/opencode/opencode.json` |
+| macOS | `~/Library/Application Support/opencode/opencode.json` |
+| Windows | `%APPDATA%\opencode\opencode.json` |
+
+Пример глобального конфига:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
   "permission": {
     "external_directory": {
       "/абсолютный/путь/к/монорепе/shared-types/*": "allow",
@@ -83,9 +103,7 @@
 }
 ```
 
-### 3. Настройте разрешения для внешних директорий
-
-В секции `permission.external_directory` укажите абсолютные пути к внешним директориям с glob-суффиксом `/*`. Это необходимо, чтобы встроенный инструмент `read` мог открывать файлы из этих директорий.
+Для каждой внешней директории укажите абсолютный путь с glob-суффиксом `/*`.
 
 ## Параметры конфигурации
 
@@ -107,7 +125,7 @@
 }
 ```
 
-Если `root` указан — пути из `directories` разрешаются от `path.resolve(ctx.directory, root)`, иначе — от `ctx.worktree`.
+Если `root` указан — пути из `directories` разрешаются от `path.resolve(configDir || openDir, root)`, иначе — от `ctx.worktree`.
 
 ### Форматы путей в `directories`
 
@@ -194,7 +212,7 @@ my-monorepo/
     │   └── plugins/
     │       └── ext-search/
     │           ├── package.json
-    │           └── index.ts
+    │           └── index.js ← из plugins/ext-search/dist
     └── my-app/            ← подпроект, открытый в OpenCode
         └── src/
 ```
@@ -217,7 +235,15 @@ my-monorepo/
         "maxResults": 50
       }
     ]
-  ],
+  ]
+}
+```
+
+Глобальный конфиг (`~/.config/opencode/opencode.json` на Linux):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
   "permission": {
     "external_directory": {
       "/home/user/my-monorepo/shared-types/*": "allow",
@@ -235,15 +261,29 @@ my-monorepo/
 4. Каждый вызов `grep`/`glob` будет автоматически дополняться результатами из `shared-types` и `common-utils`
 5. ИИ сможет использовать `deps_read` для чтения файлов из этих пакетов
 
+## Документация
+
+- [Сценарии работы плагина](docs/scenarios.md) — основной сценарий и ссылки на подробные разделы:
+  - [Инициализация плагина](docs/scenarios/plugin-initialization.md)
+  - [Обработка grep / glob](docs/scenarios/grep-glob-processing.md)
+  - [deps_read](docs/scenarios/deps-read.md)
+  - [Toast-уведомления об ошибках](docs/scenarios/toast-notifications.md)
+  - [Логирование](docs/scenarios/logging.md)
+  - [Внутренняя инфраструктура](docs/scenarios/internal-infrastructure.md) — FsHost, _testing, spawn, IGNORE_TOOLS
+- [Глоссарий](docs/glossary.md) — термины и определения
+
 ## Тестирование
 
-Для запуска e2e-тестов:
+Проект содержит три уровня тестов:
 
 ```bash
-npx vitest run
+npm run test:unit        # юнит-тесты
+npm run test:integration # интеграционные тесты
+npm run test:e2e         # e2e-тесты
+npm run test:all         # все уровни
 ```
 
-Требования для тестов:
+Требования для e2e-тестов:
 - OpenCode установлен и доступен по пути `~/.opencode/bin/opencode` (или задан через `OPENCODE_BIN`)
 - ripgrep доступен через PATH или в стандартных директориях OpenCode (для grep-тестов)
 
