@@ -1,19 +1,41 @@
 import path from "path"
-import fs from "fs"
 import { fileURLToPath } from "node:url"
 import { log } from "./constants"
+import { getFsHost } from "./fs-host"
 
-function findPluginConfigDir(startDir: string): string | null {
+export type ConfigSearchResult = {
+  dir: string | null
+  parseErrors: Array<{ configPath: string; error: string }>
+}
+
+let _pluginDirOverride: string | undefined
+
+export function setPluginDirOverride(dir: string | undefined): void {
+  _pluginDirOverride = dir
+}
+
+export function resetConfigState(): void {
+  _pluginDirOverride = undefined
+}
+
+function findPluginConfigDir(startDir: string): ConfigSearchResult {
+  const parseErrors: ConfigSearchResult["parseErrors"] = []
+
   let pluginDir: string
-  try {
-    pluginDir = path.dirname(fileURLToPath(import.meta.url))
-  } catch {
-    log.warn("findPluginConfigDir: cannot resolve pluginDir from import.meta.url")
-    return null
+  if (_pluginDirOverride !== undefined) {
+    pluginDir = _pluginDirOverride
+  } else {
+    try {
+      pluginDir = path.dirname(fileURLToPath(import.meta.url))
+    } catch {
+      log.warn("findPluginConfigDir: cannot resolve pluginDir from import.meta.url")
+      return { dir: null, parseErrors: [] }
+    }
   }
 
   log.debug("findPluginConfigDir starting", { pluginDir, startDir })
 
+  const fsHost = getFsHost()
   let current = path.resolve(startDir)
   const root = path.parse(current).root
 
@@ -21,11 +43,19 @@ function findPluginConfigDir(startDir: string): string | null {
     for (const name of ["opencode.json", "opencode.jsonc"]) {
       const configPath = path.join(current, name)
       try {
-        if (!fs.existsSync(configPath)) continue
+        if (!fsHost.existsSync(configPath)) continue
         log.debug("findPluginConfigDir: found config file", { configPath })
 
-        const raw = fs.readFileSync(configPath, "utf-8")
-        const config = JSON.parse(raw)
+        const raw = fsHost.readFileSync(configPath, "utf-8")
+        let config: any
+        try {
+          config = JSON.parse(raw)
+        } catch (parseErr: any) {
+          parseErrors.push({ configPath, error: parseErr?.message || String(parseErr) })
+          log.warn("findPluginConfigDir: parse error", { configPath, error: parseErr?.message })
+          continue
+        }
+
         if (!Array.isArray(config.plugin)) {
           log.info("findPluginConfigDir: config has no plugin array", { configPath, pluginType: typeof config.plugin, keys: Object.keys(config) })
           continue
@@ -42,7 +72,7 @@ function findPluginConfigDir(startDir: string): string | null {
           log.info("findPluginConfigDir: comparing paths", { configPath, pluginSpec: entry[0], resolved, pluginDir, exactMatch, prefixMatch })
           if (exactMatch || prefixMatch) {
             log.info("findPluginConfigDir: match found", { configDir: current, pluginSpec: entry[0], resolved })
-            return current
+            return { dir: current, parseErrors }
           }
         }
       } catch (err: any) {
@@ -54,7 +84,7 @@ function findPluginConfigDir(startDir: string): string | null {
   }
 
   log.warn("findPluginConfigDir: no config found referencing this plugin", { startDir, pluginDir })
-  return null
+  return { dir: null, parseErrors }
 }
 
 export { findPluginConfigDir }

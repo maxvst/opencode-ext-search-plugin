@@ -1,6 +1,28 @@
+interface ToastInput {
+  title?: string
+  message: string
+  variant?: "info" | "success" | "warning" | "error"
+  duration?: number
+}
+
+interface PluginClient {
+  showToast(params: ToastInput): Promise<unknown>
+  app: {
+    log(opts: {
+      body: {
+        service: string
+        level: string
+        message: string
+        extra?: Record<string, unknown>
+      }
+    }): Promise<unknown>
+  }
+}
+
 interface PluginContext {
   directory: string
   worktree: string
+  client: PluginClient
   [key: string]: unknown
 }
 
@@ -28,4 +50,4 @@ type Options = {
   maxResults?: number
 }
 
-export type { PluginContext, SearchDeps, GrepDeps, ToolOutput, Options }
+export type { PluginContext, PluginClient, SearchDeps, GrepDeps, ToolOutput, Options, ToastInput }

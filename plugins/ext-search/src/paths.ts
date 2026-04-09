@@ -1,32 +1,43 @@
 import path from "path"
 import os from "os"
-import fs from "fs"
 import { log } from "./logging"
-import { findPluginConfigDir } from "./config"
+import { getFsHost } from "./fs-host"
 
-function resolveDirectories(dirs: string[], basePath: string): string[] {
+export type ResolveDirsResult = {
+  resolved: string[]
+  missing: string[]
+}
+
+function resolveDirectories(dirs: string[], basePath: string): ResolveDirsResult {
   log.debug("resolveDirectories", { dirs, basePath })
-  const result: string[] = []
+  const resolved: string[] = []
+  const missing: string[] = []
+  const fsHost = getFsHost()
+
   for (const d of dirs) {
-    let resolved: string
+    let resolvedPath: string
     if (d.startsWith("~/") || d === "~") {
-      resolved = path.join(os.homedir(), d.slice(1))
+      resolvedPath = path.join(os.homedir(), d.slice(1))
     } else if (path.isAbsolute(d)) {
-      resolved = d
+      resolvedPath = d
     } else {
-      resolved = path.resolve(basePath, d)
+      resolvedPath = path.resolve(basePath, d)
     }
     try {
-      const stat = fs.statSync(resolved)
+      const stat = fsHost.statSync(resolvedPath)
       if (stat.isDirectory()) {
-        result.push(resolved)
-        log.debug("directory resolved", { dir: d, resolved })
+        resolved.push(resolvedPath)
+        log.debug("directory resolved", { dir: d, resolved: resolvedPath })
+      } else {
+        missing.push(d)
+        log.warn("path is not a directory, skipping", { dir: d, resolved: resolvedPath })
       }
     } catch {
-      log.warn("directory not found, skipping", { dir: d, resolved })
+      missing.push(d)
+      log.warn("directory not found, skipping", { dir: d, resolved: resolvedPath })
     }
   }
-  return result
+  return { resolved, missing }
 }
 
 function isPathInExternalDirs(searchPath: string, resolvedDirs: string[]): boolean {
@@ -42,9 +53,9 @@ function resolveBasePath(
   root: string | undefined,
   openDir: string,
   worktree: string,
+  configDir: string | null,
 ): string {
   if (!root) return worktree
-  const configDir = findPluginConfigDir(openDir)
   const resolved = path.resolve(configDir || openDir, root)
   log.debug("basePath resolved", { root, configDir: configDir ?? openDir, resolved })
   return resolved

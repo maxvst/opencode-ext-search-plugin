@@ -1,1 +1,1 @@
-export { default } from "./plugin"
+export { default, _testing } from "./plugin"

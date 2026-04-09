@@ -1,7 +1,7 @@
 import path from "path"
 import os from "os"
-import fs from "fs"
 import { IS_WIN, RG_BIN, log } from "./constants"
+import { getFsHost } from "./fs-host"
 
 function getOpenCodeBinPaths(): string[] {
   const home = os.homedir()
@@ -44,10 +44,29 @@ function getOpenCodeBinPaths(): string[] {
 let cachedRgPath: string | null = null
 let rgPathResolved = false
 
+let _rgPathOverride: string | null | undefined = undefined
+
+export function setRgPathOverride(rgPath: string | null | undefined): void {
+  _rgPathOverride = rgPath
+  rgPathResolved = false
+  cachedRgPath = null
+}
+
+export function resetRgCache(): void {
+  _rgPathOverride = undefined
+  rgPathResolved = false
+  cachedRgPath = null
+}
+
 function findRgBinary(): string | null {
+  if (_rgPathOverride !== undefined) {
+    return _rgPathOverride
+  }
+
   if (rgPathResolved) return cachedRgPath
   rgPathResolved = true
 
+  const fsHost = getFsHost()
   const pathEnv = process.env.PATH || ""
   const pathSep = IS_WIN ? ";" : ":"
   const pathExt = IS_WIN
@@ -59,7 +78,7 @@ function findRgBinary(): string | null {
     for (const ext of pathExt) {
       const candidate = path.join(dir, RG_BIN + ext)
       try {
-        if (fs.existsSync(candidate)) {
+        if (fsHost.existsSync(candidate)) {
           cachedRgPath = candidate
           log.debug("rg binary found in PATH", { path: candidate })
           return cachedRgPath
@@ -73,7 +92,7 @@ function findRgBinary(): string | null {
   for (const dir of getOpenCodeBinPaths()) {
     const candidate = path.join(dir, RG_BIN)
     try {
-      if (fs.existsSync(candidate)) {
+      if (fsHost.existsSync(candidate)) {
         cachedRgPath = candidate
         log.debug("rg binary found in opencode paths", { path: candidate })
         return cachedRgPath

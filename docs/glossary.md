@@ -8,3 +8,9 @@
 
 Директории внешних зависимостей, директории поиска, внешние директории - хранятся в массиве resolvedDirs, вычисляются исходя из basePath и параметров root и directories из opencode.json
 
+Toast-уведомление - всплывающее уведомление в интерфейсе OpenCode, вызывается через `client.showToast`. Плагин использует его для информирования о проблемах конфигурации и ограничениях работы.
+
+FsHost - абстракция над файловой системой (интерфейс в `fs-host.ts`), предоставляет методы `existsSync`, `readFileSync`, `statSync`. Используется для мокирования в интеграционных тестах. По умолчанию делегирует вызовы к `fs` модуля Node.js.
+
+_testing - экспортируемый namespace в плагине, предоставляющий функции для настройки тестового окружения: `setFsHost`, `resetFsHost`, `setPluginDirOverride`, `resetConfigState`, `setRgPathOverride`, `resetRgCache`, `resetAll`.
+
