@@ -5,21 +5,62 @@ import { spawn } from "./process"
 import { parseRgOutput, formatGrepResults } from "./output"
 import { shouldExclude, walkDir } from "./exclusion"
 
+interface ExternalSearchResult {
+  output: string
+  count: number
+  hintDirs: string[]
+}
+
+function findParentDir(filePath: string, dirs: string[]): string | null {
+  let best: string | null = null
+  for (const dir of dirs) {
+    if (filePath === dir || filePath.startsWith(dir + path.sep)) {
+      if (!best || dir.length > best.length) best = dir
+    }
+  }
+  return best
+}
+
+function computePerDirCounts(
+  items: Array<{ filePath: string }>,
+  resolvedDirs: string[],
+): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const item of items) {
+    const dir = findParentDir(item.filePath, resolvedDirs)
+    if (dir) counts.set(dir, (counts.get(dir) ?? 0) + 1)
+  }
+  return counts
+}
+
+function computeHintDirs(
+  totalCounts: Map<string, number>,
+  limitedCounts: Map<string, number>,
+  resolvedDirs: string[],
+): string[] {
+  return resolvedDirs.filter((dir) => {
+    const total = totalCounts.get(dir) ?? 0
+    const included = limitedCounts.get(dir) ?? 0
+    return total > 0 && included < total
+  })
+}
+
 async function collectGlobBun(
   pattern: string,
   dirs: string[],
   excludePatterns: string[],
-  maxResults: number,
+  maxPerDir: number,
 ): Promise<string[]> {
   const files: string[] = []
   for (const dir of dirs) {
-    if (files.length >= maxResults) break
+    let dirCount = 0
     try {
       const glob = new Bun.Glob(pattern)
       for await (const relPath of glob.scan({ cwd: dir, absolute: false })) {
-        if (files.length >= maxResults) break
+        if (dirCount >= maxPerDir) break
         if (shouldExclude(relPath, excludePatterns)) continue
         files.push(path.resolve(dir, relPath))
+        dirCount++
       }
     } catch (e: any) {
       log.error("Bun.Glob error", { dir, error: e.message })
@@ -31,13 +72,14 @@ async function collectGlobBun(
 function collectGlobFsWalk(
   dirs: string[],
   excludePatterns: string[],
-  maxResults: number,
+  maxPerDir: number,
 ): string[] {
   const files: string[] = []
   for (const dir of dirs) {
-    if (files.length >= maxResults) break
     try {
-      walkDir(dir, "", files, excludePatterns, maxResults)
+      const dirFiles: string[] = []
+      walkDir(dir, "", dirFiles, excludePatterns, maxPerDir)
+      files.push(...dirFiles)
     } catch (e: any) {
       log.error("fs.walk error", { dir, error: e.message })
     }
@@ -49,14 +91,14 @@ async function collectGlobResults(
   pattern: string,
   dirs: string[],
   excludePatterns: string[],
-  maxResults: number,
+  maxPerDir: number,
 ): Promise<string[]> {
   if (typeof Bun !== "undefined" && typeof Bun.Glob !== "undefined") {
     log.debug("using Bun.Glob for glob search")
-    return collectGlobBun(pattern, dirs, excludePatterns, maxResults)
+    return collectGlobBun(pattern, dirs, excludePatterns, maxPerDir)
   }
   log.debug("using fs.walk fallback for glob search")
-  return collectGlobFsWalk(dirs, excludePatterns, maxResults)
+  return collectGlobFsWalk(dirs, excludePatterns, maxPerDir)
 }
 
 async function searchExternalGrep(
@@ -64,14 +106,16 @@ async function searchExternalGrep(
   include: string | undefined,
   resolvedDirs: string[],
   excludePatterns: string[],
-  maxResults: number,
+  maxPerFile: number,
+  displayLimit: number,
   searchPath: string | undefined,
   rgPath: string,
-): Promise<{ output: string; count: number }> {
-  log.debug("searchExternalGrep", { pattern, include: include ?? "(none)", dirs: resolvedDirs.length, maxResults })
+): Promise<ExternalSearchResult> {
+  const empty: ExternalSearchResult = { output: "", count: 0, hintDirs: [] }
+  log.debug("searchExternalGrep", { pattern, include: include ?? "(none)", dirs: resolvedDirs.length, maxPerFile, displayLimit })
   if (searchPath && isPathInExternalDirs(searchPath, resolvedDirs)) {
     log.debug("searchPath already in external dirs, skipping grep", { searchPath })
-    return { output: "", count: 0 }
+    return empty
   }
 
   const excludeArgs: string[] = []
@@ -85,7 +129,7 @@ async function searchExternalGrep(
     "--hidden",
     "--no-messages",
     "--field-match-separator=|",
-    `--max-count=${maxResults}`,
+    `--max-count=${maxPerFile}`,
     ...excludeArgs,
   ]
   if (include) args.push("--glob", include)
@@ -97,41 +141,68 @@ async function searchExternalGrep(
     log.debug("rg spawn result", { exitCode, stdoutLen: stdout.length })
     if (exitCode === 0 || (exitCode === 2 && stdout.trim())) {
       const entries = parseRgOutput(stdout)
-      if (!entries.length) return { output: "", count: 0 }
+      if (!entries.length) return empty
       log.info("grep found matches", { matches: entries.length, pattern })
-      return formatGrepResults(entries, maxResults)
+
+      const totalDirCounts = computePerDirCounts(entries, resolvedDirs)
+
+      const formatted = formatGrepResults(entries, displayLimit)
+      const limitedEntries = entries.slice(0, displayLimit)
+      const limitedDirCounts = computePerDirCounts(limitedEntries, resolvedDirs)
+
+      const hintDirs = computeHintDirs(totalDirCounts, limitedDirCounts, resolvedDirs)
+
+      return { output: formatted.output, count: formatted.count, hintDirs }
     }
   } catch (e: any) {
     log.error("grep error", { error: e.message })
   }
 
-  return { output: "", count: 0 }
+  return empty
 }
 
 async function searchExternalGlob(
   pattern: string,
   resolvedDirs: string[],
   excludePatterns: string[],
-  maxResults: number,
+  maxPerDir: number,
+  displayLimit: number,
   searchPath: string | undefined,
-): Promise<{ output: string; count: number }> {
-  log.debug("searchExternalGlob", { pattern, dirs: resolvedDirs.length, maxResults })
+): Promise<ExternalSearchResult> {
+  const empty: ExternalSearchResult = { output: "", count: 0, hintDirs: [] }
+  log.debug("searchExternalGlob", { pattern, dirs: resolvedDirs.length, maxPerDir, displayLimit })
   if (searchPath && isPathInExternalDirs(searchPath, resolvedDirs)) {
     log.debug("searchPath already in external dirs, skipping glob", { searchPath })
-    return { output: "", count: 0 }
+    return empty
   }
 
-  const files = await collectGlobResults(
+  const allFiles = await collectGlobResults(
     pattern,
     resolvedDirs,
     excludePatterns,
-    maxResults,
+    maxPerDir,
   )
-  if (!files.length) return { output: "", count: 0 }
+  if (!allFiles.length) return empty
 
-  log.info("glob found files", { count: files.length, pattern })
-  const limited = files.slice(0, maxResults)
-  return { output: limited.join("\n"), count: limited.length }
+  log.info("glob found files", { count: allFiles.length, pattern })
+
+  const totalDirCounts = new Map<string, number>()
+  for (const f of allFiles) {
+    const dir = findParentDir(f, resolvedDirs)
+    if (dir) totalDirCounts.set(dir, (totalDirCounts.get(dir) ?? 0) + 1)
+  }
+
+  const limited = allFiles.slice(0, displayLimit)
+  const limitedDirCounts = new Map<string, number>()
+  for (const f of limited) {
+    const dir = findParentDir(f, resolvedDirs)
+    if (dir) limitedDirCounts.set(dir, (limitedDirCounts.get(dir) ?? 0) + 1)
+  }
+
+  const hintDirs = computeHintDirs(totalDirCounts, limitedDirCounts, resolvedDirs)
+
+  return { output: limited.join("\n"), count: limited.length, hintDirs }
 }
 
-export { searchExternalGrep, searchExternalGlob }
+export { searchExternalGrep, searchExternalGlob, findParentDir, computeHintDirs }
+export type { ExternalSearchResult }

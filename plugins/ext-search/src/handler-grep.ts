@@ -36,19 +36,20 @@ async function handleGrep(
     include,
     filteredDirs,
     deps.excludePatterns,
+    deps.maxResults,
     effectiveMax,
     searchPath,
     deps.rgPath,
   )
-  log.debug("handleGrep result", { count: external.count })
+  log.debug("handleGrep result", { count: external.count, hintDirs: external.hintDirs.length })
 
   if (!external.output) return
 
   output.output = mergeExternalOutput(output.output, external.output)
   applyMetadata(output, external.count, "matches")
 
-  if (external.count >= budget) {
-    output.output += buildHint(filteredDirs)
+  if (external.hintDirs.length > 0) {
+    output.output += buildHint(external.hintDirs)
   }
 }
 
