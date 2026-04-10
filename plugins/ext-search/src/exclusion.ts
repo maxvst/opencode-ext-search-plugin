@@ -1,6 +1,6 @@
 import path from "path"
-import fs from "fs"
 import { log } from "./constants"
+import { getFsHost } from "./fs-host"
 
 function globMatches(str: string, pattern: string): boolean {
   const regexStr = pattern
@@ -35,7 +35,7 @@ function walkDir(
   maxResults: number,
 ): void {
   if (files.length >= maxResults) return
-  const entries = fs.readdirSync(current, { withFileTypes: true })
+  const entries = getFsHost().readdirSync(current, { withFileTypes: true })
   for (const entry of entries) {
     if (files.length >= maxResults) return
     const rel = path.join(base, entry.name)

@@ -3,7 +3,8 @@ import { log } from "./constants"
 import { isPathInExternalDirs } from "./paths"
 import { spawn } from "./process"
 import { parseRgOutput, formatGrepResults } from "./output"
-import { shouldExclude, walkDir } from "./exclusion"
+import { shouldExclude } from "./exclusion"
+import { getFsHost } from "./fs-host"
 
 interface ExternalSearchResult {
   output: string
@@ -43,62 +44,6 @@ function computeHintDirs(
     const included = limitedCounts.get(dir) ?? 0
     return total > 0 && included < total
   })
-}
-
-async function collectGlobBun(
-  pattern: string,
-  dirs: string[],
-  excludePatterns: string[],
-  maxPerDir: number,
-): Promise<string[]> {
-  const files: string[] = []
-  for (const dir of dirs) {
-    let dirCount = 0
-    try {
-      const glob = new Bun.Glob(pattern)
-      for await (const relPath of glob.scan({ cwd: dir, absolute: false })) {
-        if (dirCount >= maxPerDir) break
-        if (shouldExclude(relPath, excludePatterns)) continue
-        files.push(path.resolve(dir, relPath))
-        dirCount++
-      }
-    } catch (e: any) {
-      log.error("Bun.Glob error", { dir, error: e.message })
-    }
-  }
-  return files
-}
-
-function collectGlobFsWalk(
-  dirs: string[],
-  excludePatterns: string[],
-  maxPerDir: number,
-): string[] {
-  const files: string[] = []
-  for (const dir of dirs) {
-    try {
-      const dirFiles: string[] = []
-      walkDir(dir, "", dirFiles, excludePatterns, maxPerDir)
-      files.push(...dirFiles)
-    } catch (e: any) {
-      log.error("fs.walk error", { dir, error: e.message })
-    }
-  }
-  return files
-}
-
-async function collectGlobResults(
-  pattern: string,
-  dirs: string[],
-  excludePatterns: string[],
-  maxPerDir: number,
-): Promise<string[]> {
-  if (typeof Bun !== "undefined" && typeof Bun.Glob !== "undefined") {
-    log.debug("using Bun.Glob for glob search")
-    return collectGlobBun(pattern, dirs, excludePatterns, maxPerDir)
-  }
-  log.debug("using fs.walk fallback for glob search")
-  return collectGlobFsWalk(dirs, excludePatterns, maxPerDir)
 }
 
 async function searchExternalGrep(
@@ -176,12 +121,16 @@ async function searchExternalGlob(
     return empty
   }
 
-  const allFiles = await collectGlobResults(
-    pattern,
-    resolvedDirs,
-    excludePatterns,
-    maxPerDir,
-  )
+  const fsHost = getFsHost()
+  const allFiles: string[] = []
+  for (const dir of resolvedDirs) {
+    try {
+      const dirFiles = await fsHost.globScan(pattern, dir, excludePatterns, maxPerDir)
+      allFiles.push(...dirFiles)
+    } catch (e: any) {
+      log.error("globScan error", { dir, error: e.message })
+    }
+  }
   if (!allFiles.length) return empty
 
   log.info("glob found files", { count: allFiles.length, pattern })
