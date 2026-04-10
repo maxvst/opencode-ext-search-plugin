@@ -2,7 +2,7 @@ import path from "path"
 import { log, setLogClient, IGNORE_TOOLS } from "./constants"
 import type { Options, PluginContext, ToastInput, SearchDeps, GrepDeps } from "./types"
 import { findRgBinary, setRgPathOverride, resetRgCache } from "./rg"
-import { resolveDirectories, resolveBasePath } from "./paths"
+import { resolveDirectories, resolveBasePath, filterCoveredDirs } from "./paths"
 import { findPluginConfigDir, setPluginDirOverride, resetConfigState } from "./config"
 import { createDepsReadTool } from "./deps-read"
 import { buildRgFallbackHint } from "./hint"
@@ -103,6 +103,7 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
     maxResults: opts.maxResults,
     worktree,
     openDir,
+    configDir: configResult.dir,
   }
 
   return {
@@ -118,7 +119,12 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
         await handleGrep(input, output, { ...searchDeps, rgPath })
       } else if (toolName === "grep") {
         log.info("rg not found, appending directory hint for grep")
-        output.output += buildRgFallbackHint(searchDeps.resolvedDirs)
+        const sp = input.args?.path
+        const effectivePath = sp ? path.resolve(sp) : worktree
+        const filtered = filterCoveredDirs(searchDeps.resolvedDirs, effectivePath)
+        if (filtered.length) {
+          output.output += buildRgFallbackHint(filtered)
+        }
       } else if (toolName === "glob") {
         log.debug("dispatching to handleGlob", { tool: toolName })
         await handleGlob(input, output, searchDeps)

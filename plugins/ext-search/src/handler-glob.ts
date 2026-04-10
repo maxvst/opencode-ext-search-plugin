@@ -4,6 +4,8 @@ import { searchExternalGlob } from "./search"
 import { calculateBudget, mergeExternalOutput } from "./budget"
 import { buildHint } from "./hint"
 import { isNarrowSearchPath, applyMetadata } from "./output-meta"
+import { filterCoveredDirs } from "./paths"
+import path from "path"
 
 async function handleGlob(
   input: any,
@@ -13,21 +15,25 @@ async function handleGlob(
   const { pattern, path: searchPath } = input.args || {}
   if (!pattern) return
   log.debug("handleGlob", { pattern, searchPath: searchPath ?? "(none)" })
-  if (isNarrowSearchPath(searchPath, deps.worktree, deps.openDir)) return
+  if (isNarrowSearchPath(searchPath, deps.worktree, deps.openDir, deps.configDir)) return
+
+  const effectiveMainPath = searchPath ? path.resolve(searchPath) : deps.worktree
+  const filteredDirs = filterCoveredDirs(deps.resolvedDirs, effectiveMainPath)
+  if (!filteredDirs.length) return
 
   const budget = calculateBudget(output.output)
   log.debug("handleGlob budget", { budget })
 
   if (budget === 0) {
     log.info("handleGlob: budget exhausted, skipping external search")
-    output.output += buildHint(deps.resolvedDirs)
+    output.output += buildHint(filteredDirs)
     return
   }
 
   const effectiveMax = Math.min(budget, deps.maxResults)
   const external = await searchExternalGlob(
     pattern,
-    deps.resolvedDirs,
+    filteredDirs,
     deps.excludePatterns,
     effectiveMax,
     searchPath,
@@ -40,7 +46,7 @@ async function handleGlob(
   applyMetadata(output, external.count, "count")
 
   if (external.count >= budget) {
-    output.output += buildHint(deps.resolvedDirs)
+    output.output += buildHint(filteredDirs)
   }
 }
 

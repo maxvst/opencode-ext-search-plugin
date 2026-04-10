@@ -61,4 +61,9 @@ function resolveBasePath(
   return resolved
 }
 
-export { resolveDirectories, isPathInExternalDirs, resolveBasePath }
+function filterCoveredDirs(dirs: string[], searchPath: string): string[] {
+  const normalized = path.resolve(searchPath)
+  return dirs.filter((d) => d !== normalized && !d.startsWith(normalized + path.sep))
+}
+
+export { resolveDirectories, isPathInExternalDirs, resolveBasePath, filterCoveredDirs }

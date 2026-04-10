@@ -32,6 +32,7 @@ interface SearchDeps {
   maxResults: number
   worktree: string
   openDir: string
+  configDir: string | null
 }
 
 interface GrepDeps extends SearchDeps {

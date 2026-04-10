@@ -4,6 +4,8 @@ import { searchExternalGrep } from "./search"
 import { calculateBudget, mergeExternalOutput } from "./budget"
 import { buildHint } from "./hint"
 import { isNarrowSearchPath, applyMetadata } from "./output-meta"
+import { filterCoveredDirs } from "./paths"
+import path from "path"
 
 async function handleGrep(
   input: any,
@@ -13,14 +15,18 @@ async function handleGrep(
   const { pattern, include, path: searchPath } = input.args || {}
   if (!pattern) return
   log.debug("handleGrep", { pattern, include, searchPath: searchPath ?? "(none)" })
-  if (isNarrowSearchPath(searchPath, deps.worktree, deps.openDir)) return
+  if (isNarrowSearchPath(searchPath, deps.worktree, deps.openDir, deps.configDir)) return
+
+  const effectiveMainPath = searchPath ? path.resolve(searchPath) : deps.worktree
+  const filteredDirs = filterCoveredDirs(deps.resolvedDirs, effectiveMainPath)
+  if (!filteredDirs.length) return
 
   const budget = calculateBudget(output.output)
   log.debug("handleGrep budget", { budget })
 
   if (budget === 0) {
     log.info("handleGrep: budget exhausted, skipping external search")
-    output.output += buildHint(deps.resolvedDirs)
+    output.output += buildHint(filteredDirs)
     return
   }
 
@@ -28,7 +34,7 @@ async function handleGrep(
   const external = await searchExternalGrep(
     pattern,
     include,
-    deps.resolvedDirs,
+    filteredDirs,
     deps.excludePatterns,
     effectiveMax,
     searchPath,
@@ -42,7 +48,7 @@ async function handleGrep(
   applyMetadata(output, external.count, "matches")
 
   if (external.count >= budget) {
-    output.output += buildHint(deps.resolvedDirs)
+    output.output += buildHint(filteredDirs)
   }
 }
 
