@@ -4,10 +4,10 @@ import { getTestDirs } from "../setup"
 import { runOpencodeJson, findToolEvents, getToolNames } from "../helpers"
 
 describe("deps_read tool", () => {
-  it("reads file content from external directory", ({ skip }) => {
+  it("reads file content from external directory", async ({ skip }) => {
     const dirs = getTestDirs()
     const typesFile = path.join(dirs.sharedTypes, "types.ts")
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       `Use the deps_read tool to read the file at ${typesFile}. Only use deps_read.`,
       dirs.app,
     )

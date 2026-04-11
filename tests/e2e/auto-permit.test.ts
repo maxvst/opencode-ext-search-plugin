@@ -3,9 +3,9 @@ import { getTestDirs } from "../setup"
 import { runOpencodeJson, getToolNames, findToolEvents } from "../helpers"
 
 describe("auto-permit for external directory access", () => {
-  it("auto-approves access to files in external directories", ({ skip }) => {
+  it("auto-approves access to files in external directories", async ({ skip }) => {
     const dirs = getTestDirs()
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       "Use the grep tool to search for 'getAnswerToEverything' across the codebase. " +
       "Find where this function is defined, read that file, and tell me exactly what number it returns. " +
       "Only use grep and read tools.",

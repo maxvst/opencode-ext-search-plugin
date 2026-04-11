@@ -24,7 +24,7 @@ function getLatestLogFiles(count: number): string[] {
 }
 
 describe("logging via client.app.log", () => {
-  it("writes structured log entries to opencode log files", ({ skip }) => {
+  it("writes structured log entries to opencode log files", async ({ skip }) => {
     const dirs = getTestDirs()
 
     const beforeFiles = getLatestLogFiles(2)
@@ -37,7 +37,7 @@ describe("logging via client.app.log", () => {
       }
     }
 
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       "Use bash to run: echo test-log-check",
       dirs.app,
     )

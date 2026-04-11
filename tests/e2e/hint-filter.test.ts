@@ -63,8 +63,8 @@ function cleanupMonorepo(root: string): void {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
-function runGlobAndGetOutput(appDir: string): string | null {
-  const events = runOpencodeJson(
+async function runGlobAndGetOutput(appDir: string): Promise<string | null> {
+  const events = await runOpencodeJson(
     'Use the glob tool with pattern "**/*.ts" to find all TypeScript files. Only use the glob tool, nothing else.',
     appDir,
   )
@@ -87,7 +87,7 @@ describe("hint filtering by search results (e2e)", () => {
     roots.length = 0
   })
 
-  it("hints only dirs with truncated results, excludes dir that fits", ({ skip }) => {
+  it("hints only dirs with truncated results, excludes dir that fits", async ({ skip }) => {
     const { root, appDir, extA, extB } = setupMonorepo({
       appFileCount: 90,
       dirAFiles: 3,
@@ -95,7 +95,7 @@ describe("hint filtering by search results (e2e)", () => {
     })
     roots.push(root)
 
-    const output = runGlobAndGetOutput(appDir)
+    const output = await runGlobAndGetOutput(appDir)
     if (!output) {
       skip()
       return
@@ -108,7 +108,7 @@ describe("hint filtering by search results (e2e)", () => {
     expect(hintMatch![1]).toContain(extB)
   })
 
-  it("does not add hint when all results fit in budget", ({ skip }) => {
+  it("does not add hint when all results fit in budget", async ({ skip }) => {
     const { root, appDir } = setupMonorepo({
       appFileCount: 10,
       dirAFiles: 5,
@@ -116,7 +116,7 @@ describe("hint filtering by search results (e2e)", () => {
     })
     roots.push(root)
 
-    const output = runGlobAndGetOutput(appDir)
+    const output = await runGlobAndGetOutput(appDir)
     if (!output) {
       skip()
       return
@@ -126,7 +126,7 @@ describe("hint filtering by search results (e2e)", () => {
     expect(output).not.toContain("may contain additional matches")
   })
 
-  it("hints both dirs when both have truncated results", ({ skip }) => {
+  it("hints both dirs when both have truncated results", async ({ skip }) => {
     const { root, appDir, extA, extB } = setupMonorepo({
       appFileCount: 90,
       dirAFiles: 40,
@@ -134,7 +134,7 @@ describe("hint filtering by search results (e2e)", () => {
     })
     roots.push(root)
 
-    const output = runGlobAndGetOutput(appDir)
+    const output = await runGlobAndGetOutput(appDir)
     if (!output) {
       skip()
       return
@@ -147,7 +147,7 @@ describe("hint filtering by search results (e2e)", () => {
     expect(hintMatch![1]).toContain(extB)
   })
 
-  it("hints all filtered dirs when budget is 0", ({ skip }) => {
+  it("hints all filtered dirs when budget is 0", async ({ skip }) => {
     const { root, appDir, extA, extB } = setupMonorepo({
       appFileCount: 110,
       dirAFiles: 5,
@@ -155,7 +155,7 @@ describe("hint filtering by search results (e2e)", () => {
     })
     roots.push(root)
 
-    const output = runGlobAndGetOutput(appDir)
+    const output = await runGlobAndGetOutput(appDir)
     if (!output) {
       skip()
       return
@@ -166,7 +166,7 @@ describe("hint filtering by search results (e2e)", () => {
     expect(output).toContain(extB)
   })
 
-  it("excludes dir with no results from hint", ({ skip }) => {
+  it("excludes dir with no results from hint", async ({ skip }) => {
     const { root, appDir, extA, extB } = setupMonorepo({
       appFileCount: 90,
       dirAFiles: 0,
@@ -174,7 +174,7 @@ describe("hint filtering by search results (e2e)", () => {
     })
     roots.push(root)
 
-    const output = runGlobAndGetOutput(appDir)
+    const output = await runGlobAndGetOutput(appDir)
     if (!output) {
       skip()
       return

@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process"
+import { spawn } from "node:child_process"
 import os from "node:os"
 import path from "node:path"
 
@@ -22,22 +22,40 @@ export interface ToolEvent {
   }
 }
 
-export function runOpencode(args: string[], cwd: string): OpencodeResult {
-  const result = spawnSync(OPENCODE, args, {
-    cwd,
-    stdio: ["pipe", "pipe", "pipe"],
-    timeout: 120_000,
-    env: { ...process.env, NO_COLOR: "1" },
+export async function runOpencode(args: string[], cwd: string): Promise<OpencodeResult> {
+  return new Promise((resolve) => {
+    const child = spawn(OPENCODE, args, {
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, NO_COLOR: "1" },
+    })
+
+    let stdout = ""
+    let stderr = ""
+
+    child.stdout.on("data", (data: Buffer) => { stdout += data.toString() })
+    child.stderr.on("data", (data: Buffer) => { stderr += data.toString() })
+
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL")
+    }, 120_000)
+
+    child.on("close", (code) => {
+      clearTimeout(timer)
+      resolve({ stdout, stderr, exitCode: code ?? 1 })
+    })
+
+    child.on("error", (err) => {
+      clearTimeout(timer)
+      resolve({ stdout, stderr, exitCode: 1 })
+    })
+
+    child.stdin!.end()
   })
-  return {
-    stdout: result.stdout ? result.stdout.toString() : "",
-    stderr: result.stderr ? result.stderr.toString() : "",
-    exitCode: result.status ?? 1,
-  }
 }
 
-export function runOpencodeJson(message: string, cwd: string): Record<string, unknown>[] {
-  const result = runOpencode(["run", "--format", "json", "--dir", cwd, message], cwd)
+export async function runOpencodeJson(message: string, cwd: string): Promise<Record<string, unknown>[]> {
+  const result = await runOpencode(["run", "--format", "json", "--dir", cwd, message], cwd)
   const events: Record<string, unknown>[] = []
   for (const line of result.stdout.split("\n")) {
     const trimmed = line.trim()

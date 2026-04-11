@@ -3,9 +3,9 @@ import { getTestDirs } from "../setup"
 import { runOpencodeJson, findToolEvents, getToolNames } from "../helpers"
 
 describe("glob interception", () => {
-  it("finds TypeScript files in external dependencies", ({ skip }) => {
+  it("finds TypeScript files in external dependencies", async ({ skip }) => {
     const dirs = getTestDirs()
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       'Use the glob tool with pattern "**/*.ts" to find all TypeScript files. Only use the glob tool, nothing else.',
       dirs.app,
     )

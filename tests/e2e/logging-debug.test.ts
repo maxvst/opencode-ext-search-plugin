@@ -41,10 +41,10 @@ function collectExtSearchLines(logFiles: string[]): string[] {
 }
 
 describe("logging structured fields", () => {
-  it("log entries have correct level prefix and service tag", ({ skip }) => {
+  it("log entries have correct level prefix and service tag", async ({ skip }) => {
     const dirs = getTestDirs()
 
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       "Use bash to run: echo test-log-structure",
       dirs.app,
     )
@@ -69,10 +69,10 @@ describe("logging structured fields", () => {
     expect(hasValidLevel).toBe(true)
   })
 
-  it("logs initialized message with directory count and rg info", ({ skip }) => {
+  it("logs initialized message with directory count and rg info", async ({ skip }) => {
     const dirs = getTestDirs()
 
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       "Use bash to run: echo test-log-init-fields",
       dirs.app,
     )

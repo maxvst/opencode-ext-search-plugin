@@ -3,9 +3,9 @@ import { getTestDirs } from "../setup"
 import { runOpencodeJson, findToolEvents, getToolNames, type ToolEvent } from "../helpers"
 
 describe("grep interception", () => {
-  it("finds pattern in external dependencies", ({ skip }) => {
+  it("finds pattern in external dependencies", async ({ skip }) => {
     const dirs = getTestDirs()
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       'Use the grep tool to search for the pattern "UserProfile" across the codebase. Only use the grep tool, nothing else.',
       dirs.app,
     )
@@ -22,9 +22,9 @@ describe("grep interception", () => {
     expect(output).toContain("types.ts")
   })
 
-  it("applies include filter for external results", ({ skip }) => {
+  it("applies include filter for external results", async ({ skip }) => {
     const dirs = getTestDirs()
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       'Use the grep tool to search for "formatDate" in "*.ts" files only. Use include "*.ts".',
       dirs.app,
     )
@@ -37,9 +37,9 @@ describe("grep interception", () => {
     expect(output).toMatch(/External dependencies|helpers\.ts/)
   })
 
-  it("does not duplicate external dependencies when path is already external", ({ skip }) => {
+  it("does not duplicate external dependencies when path is already external", async ({ skip }) => {
     const dirs = getTestDirs()
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       'Use the grep tool to search for "formatDate". Set the path parameter to "../../common-utils". Only use grep.',
       dirs.app,
     )
@@ -63,9 +63,9 @@ describe("grep interception", () => {
     expect(extDepsCount).toBeLessThanOrEqual(1)
   })
 
-  it("skips external search when subdirectory path is narrow", ({ skip }) => {
+  it("skips external search when subdirectory path is narrow", async ({ skip }) => {
     const dirs = getTestDirs()
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       'Use the grep tool to search for "narrowHelper" in the subdirectory "src". Set the path parameter to "src". Only use grep.',
       dirs.app,
     )

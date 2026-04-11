@@ -3,9 +3,9 @@ import { getDeepTestDirs } from "../setup"
 import { runOpencodeJson, findToolEvents, getToolNames } from "../helpers"
 
 describe("deep nesting with intermediate config", () => {
-  it("finds pattern in external deps despite intermediate opencode.json", ({ skip }) => {
+  it("finds pattern in external deps despite intermediate opencode.json", async ({ skip }) => {
     const dirs = getDeepTestDirs()
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       'Use the grep tool to search for the pattern "UserProfile" across the codebase. Only use the grep tool, nothing else.',
       dirs.app,
     )
@@ -22,9 +22,9 @@ describe("deep nesting with intermediate config", () => {
     expect(output).toContain("types.ts")
   })
 
-  it("finds files in external deps via glob with deep nesting", ({ skip }) => {
+  it("finds files in external deps via glob with deep nesting", async ({ skip }) => {
     const dirs = getDeepTestDirs()
-    const events = runOpencodeJson(
+    const events = await runOpencodeJson(
       'Use the glob tool to search for "**/*.ts" files. Only use the glob tool, nothing else.',
       dirs.app,
     )
