@@ -10,6 +10,7 @@ import { validateOptions } from "./validation"
 import { handleGrep } from "./handler-grep"
 import { handleGlob } from "./handler-glob"
 import { setFsHost, resetFsHost } from "./fs-host"
+import { createAutoPermitHandler } from "./auto-permit"
 
 async function showToast(ctx: PluginContext, input: ToastInput): Promise<void> {
   try {
@@ -106,7 +107,11 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
     configDir: configResult.dir,
   }
 
+  const autoPermitHandler = createAutoPermitHandler(dirsResult.resolved, ctx.client)
+
   return {
+    event: autoPermitHandler,
+
     "tool.execute.after": async (input: any, output: any) => {
       const toolName = input.tool as string
       if (IGNORE_TOOLS.has(toolName)) {

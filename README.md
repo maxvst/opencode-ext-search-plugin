@@ -81,6 +81,8 @@
 
 Для работы встроенного инструмента `read` с файлами из внешних директорий необходимо задать `permission.external_directory`. Поскольку эта секция содержит абсолютные пути, специфичные для машины разработчика, её **не следует** помещать в проектный `opencode.json` — вместо этого используйте **глобальный конфиг** OpenCode.
 
+> **Примечание:** плагин автоматически одобряет запросы `external_directory` для путей внутри настроенных внешних директорий (см. [Авто-permit](docs/scenarios/auto-permit.md)). Ручная настройка `permission.external_directory` в глобальном конфиге по-прежнему поддерживается для полноты, но в большинстве случаев авто-permit делает её необязательной.
+
 Путь к глобальному конфигу зависит от платформы:
 
 | Платформа | Путь |
@@ -267,6 +269,7 @@ my-monorepo/
   - [Инициализация плагина](docs/scenarios/plugin-initialization.md)
   - [Обработка grep / glob](docs/scenarios/grep-glob-processing.md)
   - [deps_read](docs/scenarios/deps-read.md)
+  - [Авто-permit](docs/scenarios/auto-permit.md) — автоматическое одобрение запросов доступа к внешним директориям
   - [Toast-уведомления об ошибках](docs/scenarios/toast-notifications.md)
   - [Логирование](docs/scenarios/logging.md)
   - [Внутренняя инфраструктура](docs/scenarios/internal-infrastructure.md) — FsHost, _testing, spawn, IGNORE_TOOLS

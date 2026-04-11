@@ -17,6 +17,9 @@ interface PluginClient {
       }
     }): Promise<unknown>
   }
+  permission?: {
+    reply(params: { requestID: string; reply: "once" | "always" | "reject" }): Promise<unknown>
+  }
 }
 
 interface PluginContext {
