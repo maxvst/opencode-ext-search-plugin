@@ -6,7 +6,7 @@ const DEFAULT_MAX_RESULTS = 50
 
 function validateOptions(
   options?: Options,
-): (Required<Omit<Options, "root">> & { root?: string }) | null {
+): (Required<Omit<Options, "root" | "strict_path_restrictions">> & { root?: string; strict_path_restrictions?: boolean }) | null {
   const opts = options ?? ({} as Options)
   if (!opts.directories?.length) {
     log.warn("no directories configured, plugin inactive")
@@ -18,6 +18,7 @@ function validateOptions(
     root: opts.root,
     excludePatterns: opts.excludePatterns ?? DEFAULT_EXCLUDE_PATTERNS,
     maxResults: opts.maxResults ?? DEFAULT_MAX_RESULTS,
+    strict_path_restrictions: opts.strict_path_restrictions ?? false,
   }
 }
 

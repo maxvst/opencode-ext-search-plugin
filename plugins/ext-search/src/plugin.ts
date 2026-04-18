@@ -11,6 +11,7 @@ import { handleGrep } from "./handler-grep"
 import { handleGlob } from "./handler-glob"
 import { setFsHost, resetFsHost } from "./fs-host"
 import { createAutoPermitHandler } from "./auto-permit"
+import { createStrictPathBeforeHook } from "./strict-paths"
 
 async function showToast(ctx: PluginContext, input: ToastInput): Promise<void> {
   try {
@@ -107,9 +108,9 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
     configDir: configResult.dir,
   }
 
-  const autoPermitHandler = createAutoPermitHandler(dirsResult.resolved, ctx.client)
+  const autoPermitHandler = createAutoPermitHandler(dirsResult.resolved, ctx.client, configResult.dir)
 
-  return {
+  const hooks: Record<string, any> = {
     event: autoPermitHandler,
 
     "tool.execute.after": async (input: any, output: any) => {
@@ -138,6 +139,17 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
 
     tool: depsResult.tool,
   }
+
+  if (opts.strict_path_restrictions && configResult.dir) {
+    log.info("strict_path_restrictions enabled, registering tool.execute.before hook")
+    hooks["tool.execute.before"] = createStrictPathBeforeHook(
+      configResult.dir,
+      dirsResult.resolved,
+      openDir,
+    )
+  }
+
+  return hooks
 }
 
 const _testing = {

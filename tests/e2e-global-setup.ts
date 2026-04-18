@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import os from "node:os"
-import { setupTestMonorepo, setupTestMonorepoDeep, cleanup } from "./setup"
+import { setupTestMonorepo, setupTestMonorepoDeep, setupTestMonorepoStrict, cleanup } from "./setup"
 
 const OPENCODE = process.env.OPENCODE_BIN || path.join(os.homedir(), ".opencode", "bin", "opencode")
 
@@ -17,12 +17,17 @@ export default function globalSetup() {
   const deepDirs = setupTestMonorepoDeep()
   process.env.EXT_SEARCH_DEEP_TEST_DIR = deepDirs.root
 
+  const strictDirs = setupTestMonorepoStrict()
+  process.env.EXT_SEARCH_STRICT_TEST_DIR = strictDirs.root
+
   console.log(`Test dir: ${dirs.root}`)
   console.log(`Deep test dir: ${deepDirs.root}`)
+  console.log(`Strict test dir: ${strictDirs.root}`)
   console.log(`Opencode: ${OPENCODE}\n`)
 
   return () => {
     cleanup(dirs.root)
     cleanup(deepDirs.root)
+    cleanup(strictDirs.root)
   }
 }

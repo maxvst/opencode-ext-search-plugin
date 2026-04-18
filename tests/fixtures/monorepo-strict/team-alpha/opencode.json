@@ -1,0 +1,14 @@
+{
+  "plugin": [
+    [
+      "./.opencode/plugins/ext-search",
+      {
+        "root": "../",
+        "directories": ["shared-types", "common-utils"],
+        "excludePatterns": ["node_modules", ".git", "dist", "*.test.*"],
+        "maxResults": 50,
+        "strict_path_restrictions": true
+      }
+    ]
+  ]
+}

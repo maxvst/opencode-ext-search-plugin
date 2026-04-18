@@ -54,8 +54,13 @@ export async function runOpencode(args: string[], cwd: string): Promise<Opencode
   })
 }
 
-export async function runOpencodeJson(message: string, cwd: string): Promise<Record<string, unknown>[]> {
-  const result = await runOpencode(["run", "--format", "json", "--dir", cwd, message], cwd)
+export async function runOpencodeJson(message: string, cwd: string, options?: { skipPermissions?: boolean }): Promise<Record<string, unknown>[]> {
+  const args = ["run", "--format", "json", "--dir", cwd]
+  if (options?.skipPermissions) {
+    args.push("--dangerously-skip-permissions")
+  }
+  args.push(message)
+  const result = await runOpencode(args, cwd)
   const events: Record<string, unknown>[] = []
   for (const line of result.stdout.split("\n")) {
     const trimmed = line.trim()

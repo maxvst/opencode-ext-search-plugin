@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest"
 import {
   extractBaseFromGlob,
   isInsideExternalDirs,
+  isInsideDir,
   shouldAutoApprove,
   createAutoPermitHandler,
 } from "../../plugins/ext-search/src/auto-permit"
@@ -56,6 +57,28 @@ describe("isInsideExternalDirs", () => {
   })
 })
 
+describe("isInsideDir", () => {
+  it("returns true for exact match", () => {
+    expect(isInsideDir("/project/team", "/project/team")).toBe(true)
+  })
+
+  it("returns true for subdirectory", () => {
+    expect(isInsideDir("/project/team/src", "/project/team")).toBe(true)
+  })
+
+  it("returns false for parent directory", () => {
+    expect(isInsideDir("/project", "/project/team")).toBe(false)
+  })
+
+  it("returns false for sibling with prefix-like name", () => {
+    expect(isInsideDir("/project/team-other", "/project/team")).toBe(false)
+  })
+
+  it("returns false for unrelated path", () => {
+    expect(isInsideDir("/other/dir", "/project/team")).toBe(false)
+  })
+})
+
 describe("shouldAutoApprove", () => {
   const dirs = ["/ext/deps", "/ext/shared"]
 
@@ -66,6 +89,7 @@ describe("shouldAutoApprove", () => {
         ["/ext/deps/**"],
         {},
         dirs,
+        null,
       ),
     ).toBe(true)
   })
@@ -77,6 +101,7 @@ describe("shouldAutoApprove", () => {
         ["/unrelated/**"],
         { filepath: "/ext/deps/lib/index.ts" },
         dirs,
+        null,
       ),
     ).toBe(true)
   })
@@ -88,13 +113,14 @@ describe("shouldAutoApprove", () => {
         ["/unrelated/**"],
         { parentDir: "/ext/shared" },
         dirs,
+        null,
       ),
     ).toBe(true)
   })
 
   it("rejects non-external_directory permission", () => {
     expect(
-      shouldAutoApprove("bash", ["/ext/deps/**"], {}, dirs),
+      shouldAutoApprove("bash", ["/ext/deps/**"], {}, dirs, null),
     ).toBe(false)
   })
 
@@ -105,13 +131,14 @@ describe("shouldAutoApprove", () => {
         ["/other/**"],
         { filepath: "/other/file.ts" },
         dirs,
+        null,
       ),
     ).toBe(false)
   })
 
   it("rejects when patterns empty and no metadata paths", () => {
     expect(
-      shouldAutoApprove("external_directory", [], {}, dirs),
+      shouldAutoApprove("external_directory", [], {}, dirs, null),
     ).toBe(false)
   })
 
@@ -122,6 +149,7 @@ describe("shouldAutoApprove", () => {
         ["/unrelated/**", "/ext/deps/**", "/other/**"],
         {},
         dirs,
+        null,
       ),
     ).toBe(true)
   })
@@ -133,6 +161,7 @@ describe("shouldAutoApprove", () => {
         ["/unrelated/**", "/other/**", "/misc/**"],
         {},
         dirs,
+        null,
       ),
     ).toBe(false)
   })
@@ -144,6 +173,7 @@ describe("shouldAutoApprove", () => {
         ["/unrelated/**"],
         { filepath: "/ext/deps/file.ts", parentDir: "/unrelated" },
         dirs,
+        null,
       ),
     ).toBe(true)
   })
@@ -155,6 +185,7 @@ describe("shouldAutoApprove", () => {
         ["/unrelated/**"],
         { filepath: "/unrelated/file.ts", parentDir: "/ext/shared" },
         dirs,
+        null,
       ),
     ).toBe(true)
   })
@@ -166,9 +197,58 @@ describe("shouldAutoApprove", () => {
         ["/ext/deps/**"],
         { filepath: 123, parentDir: null },
         dirs,
+        null,
       ),
     ).toBe(true)
     // Still approved because pattern matches; metadata is safely ignored
+  })
+
+  it("approves when path is inside configDir", () => {
+    expect(
+      shouldAutoApprove(
+        "external_directory",
+        ["/project/team/src/**"],
+        {},
+        dirs,
+        "/project/team",
+      ),
+    ).toBe(true)
+  })
+
+  it("approves when path equals configDir", () => {
+    expect(
+      shouldAutoApprove(
+        "external_directory",
+        ["/project/team/**"],
+        {},
+        dirs,
+        "/project/team",
+      ),
+    ).toBe(true)
+  })
+
+  it("rejects when path is parent of configDir", () => {
+    expect(
+      shouldAutoApprove(
+        "external_directory",
+        ["/project/**"],
+        {},
+        dirs,
+        "/project/team",
+      ),
+    ).toBe(false)
+  })
+
+  it("rejects when configDir is null and no external dir matches", () => {
+    expect(
+      shouldAutoApprove(
+        "external_directory",
+        ["/project/team/**"],
+        {},
+        dirs,
+        null,
+      ),
+    ).toBe(false)
   })
 })
 

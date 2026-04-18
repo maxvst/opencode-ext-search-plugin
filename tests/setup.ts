@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const FIXTURES_DIR = path.resolve(__dirname, "fixtures", "monorepo")
 const FIXTURES_DEEP_DIR = path.resolve(__dirname, "fixtures", "monorepo-deep")
+const FIXTURES_STRICT_DIR = path.resolve(__dirname, "fixtures", "monorepo-strict")
 const PLUGIN_DIR = path.resolve(__dirname, "..", "plugins", "ext-search")
 
 export interface Dirs {
@@ -55,6 +56,15 @@ export function setupTestMonorepoDeep(testDir?: string): Dirs {
   return getDeepDirs(dir)
 }
 
+export function setupTestMonorepoStrict(testDir?: string): Dirs {
+  const dir = testDir ?? createTestDir()
+
+  fs.cpSync(FIXTURES_STRICT_DIR, dir, { recursive: true })
+  fs.cpSync(PLUGIN_DIR, path.join(dir, "team-alpha", ".opencode", "plugins", "ext-search"), { recursive: true })
+
+  return getDirs(dir)
+}
+
 export function cleanup(testDir: string): void {
   try {
     fs.rmSync(testDir, { recursive: true, force: true })
@@ -73,4 +83,10 @@ export function getDeepTestDirs(): Dirs {
   const testDir = process.env.EXT_SEARCH_DEEP_TEST_DIR
   if (!testDir) throw new Error("EXT_SEARCH_DEEP_TEST_DIR env not set — was global-setup executed?")
   return getDeepDirs(testDir)
+}
+
+export function getStrictTestDirs(): Dirs {
+  const testDir = process.env.EXT_SEARCH_STRICT_TEST_DIR
+  if (!testDir) throw new Error("EXT_SEARCH_STRICT_TEST_DIR env not set — was global-setup executed?")
+  return getDirs(testDir)
 }

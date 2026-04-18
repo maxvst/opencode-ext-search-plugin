@@ -10,6 +10,7 @@ describe("auto-permit for external directory access", () => {
       "Find where this function is defined, read that file, and tell me exactly what number it returns. " +
       "Only use grep and read tools.",
       dirs.app,
+      { skipPermissions: true },
     )
 
     const toolNames = getToolNames(events)

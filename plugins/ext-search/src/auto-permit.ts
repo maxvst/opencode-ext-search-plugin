@@ -20,11 +20,17 @@ function isInsideExternalDirs(targetPath: string, resolvedDirs: string[]): boole
   )
 }
 
+function isInsideDir(targetPath: string, dir: string): boolean {
+  const normalized = path.resolve(targetPath)
+  return normalized === dir || normalized.startsWith(dir + path.sep)
+}
+
 function shouldAutoApprove(
   permission: string,
   patterns: string[],
   metadata: Record<string, unknown>,
   resolvedDirs: string[],
+  configDir: string | null,
 ): boolean {
   if (permission !== "external_directory") return false
 
@@ -42,12 +48,17 @@ function shouldAutoApprove(
     pathsToCheck.push(metadata.parentDir)
   }
 
-  return pathsToCheck.some((p) => isInsideExternalDirs(p, resolvedDirs))
+  if (pathsToCheck.some((p) => isInsideExternalDirs(p, resolvedDirs))) return true
+
+  if (configDir && pathsToCheck.some((p) => isInsideDir(p, configDir))) return true
+
+  return false
 }
 
 function createAutoPermitHandler(
   resolvedDirs: string[],
   client: PermissionClient,
+  configDir: string | null = null,
 ): (input: { event: { type: string; properties?: any } }) => Promise<void> {
   return async (input) => {
     if (input.event.type !== "permission.asked") return
@@ -58,7 +69,7 @@ function createAutoPermitHandler(
     const { id, permission, patterns, metadata } = props
     if (!id || !permission || !Array.isArray(patterns)) return
 
-    if (!shouldAutoApprove(permission, patterns, metadata || {}, resolvedDirs)) return
+    if (!shouldAutoApprove(permission, patterns, metadata || {}, resolvedDirs, configDir)) return
 
     if (!client.permission?.reply) {
       log.warn("auto-permit: client.permission.reply not available", { requestId: id })
@@ -78,4 +89,4 @@ function createAutoPermitHandler(
   }
 }
 
-export { createAutoPermitHandler, shouldAutoApprove, isInsideExternalDirs, extractBaseFromGlob }
+export { createAutoPermitHandler, shouldAutoApprove, isInsideExternalDirs, isInsideDir, extractBaseFromGlob }

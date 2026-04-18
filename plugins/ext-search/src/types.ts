@@ -52,6 +52,7 @@ type Options = {
   directories: string[]
   excludePatterns?: string[]
   maxResults?: number
+  strict_path_restrictions?: boolean
 }
 
 export type { PluginContext, PluginClient, SearchDeps, GrepDeps, ToolOutput, Options, ToastInput }
