@@ -4,21 +4,26 @@ import type { Options } from "./types"
 const DEFAULT_EXCLUDE_PATTERNS = ["node_modules", ".git", "dist"]
 const DEFAULT_MAX_RESULTS = 50
 
-function validateOptions(
-  options?: Options,
-): (Required<Omit<Options, "root" | "strict_path_restrictions">> & { root?: string; strict_path_restrictions?: boolean }) | null {
+type ValidatedOptions = Required<Omit<Options, "root" | "strict_path_restrictions" | "compile_commands_dir">> & {
+  root?: string
+  strict_path_restrictions?: boolean
+  compile_commands_dir?: string
+}
+
+function validateOptions(options?: Options): ValidatedOptions | null {
   const opts = options ?? ({} as Options)
-  if (!opts.directories?.length) {
-    log.warn("no directories configured, plugin inactive")
+  if (!opts.directories?.length && !opts.compile_commands_dir) {
+    log.warn("no directories or compile_commands_dir configured, plugin inactive")
     return null
   }
-  log.debug("options validated", { directories: opts.directories, root: opts.root })
+  log.debug("options validated", { directories: opts.directories, root: opts.root, compile_commands_dir: opts.compile_commands_dir })
   return {
-    directories: opts.directories,
+    directories: opts.directories ?? [],
     root: opts.root,
     excludePatterns: opts.excludePatterns ?? DEFAULT_EXCLUDE_PATTERNS,
     maxResults: opts.maxResults ?? DEFAULT_MAX_RESULTS,
     strict_path_restrictions: opts.strict_path_restrictions ?? false,
+    compile_commands_dir: opts.compile_commands_dir,
   }
 }
 

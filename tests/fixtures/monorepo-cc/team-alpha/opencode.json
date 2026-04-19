@@ -1,0 +1,10 @@
+{
+  "plugin": [
+    [
+      "./.opencode/plugins/ext-search",
+      {
+        "compile_commands_dir": "../build"
+      }
+    ]
+  ]
+}

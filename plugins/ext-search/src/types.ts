@@ -47,12 +47,19 @@ interface ToolOutput {
   metadata: Record<string, unknown>
 }
 
+type ExternalDir = {
+  path: string
+  source: "config" | "compile_commands"
+  disabled?: boolean
+}
+
 type Options = {
   root?: string
   directories: string[]
   excludePatterns?: string[]
   maxResults?: number
   strict_path_restrictions?: boolean
+  compile_commands_dir?: string
 }
 
-export type { PluginContext, PluginClient, SearchDeps, GrepDeps, ToolOutput, Options, ToastInput }
+export type { PluginContext, PluginClient, SearchDeps, GrepDeps, ToolOutput, Options, ToastInput, ExternalDir }

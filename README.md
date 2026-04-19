@@ -112,10 +112,11 @@
 | Параметр           | Тип        | Обязательный | Описание                                                                       |
 | ------------------ | ---------- | :-----------: | ------------------------------------------------------------------------------ |
 | `root`             | `string`   |     Нет       | Путь к корню монорепы (относительно открытого подпроекта). Если не указан — используется `ctx.worktree` (корень git-репозитория) |
-| `directories`      | `string[]` |      Да       | Список путей к внешним директориям (относительных от `root` или абсолютных) |
+| `directories`      | `string[]` |     Условно   | Список путей к внешним директориям (относительных от `root` или абсолютных). Обязателен, если не указан `compile_commands_dir` |
 | `excludePatterns`  | `string[]` |     Нет       | Glob-паттерны для исключения файлов (по умолчанию: `["node_modules", ".git", "dist"]`) |
 | `maxResults`       | `number`   |     Нет       | Верхний предел результатов из внешних директорий на один вызов (по умолчанию: `50`). Фактический лимит динамически уменьшается, если основной поиск занял большую часть общего бюджета (см. ниже)  |
 | `strict_path_restrictions` | `boolean` |   Нет  | При `true` перехватывает вызовы `glob`/`grep` и перенаправляет пути поиска за пределы configDir и внешних директорий обратно в configDir (по умолчанию: `false`). Подробнее см. [Ограничение путей поиска](docs/scenarios/strict-path-restrictions.md) |
+| `compile_commands_dir` | `string` |   Нет  | Относительный путь к директории с `compile_commands.json` относительно configDir. Плагин автоматически извлечёт уникальные директории исходных файлов из базы компиляции и будет использовать их как внешние директории для поиска. Подробнее см. [Поддержка compile_commands.json](docs/scenarios/compile-commands.md) |
 
 ### Поле `root`
 
@@ -272,6 +273,7 @@ my-monorepo/
   - [deps_read](docs/scenarios/deps-read.md)
   - [Авто-permit](docs/scenarios/auto-permit.md) — автоматическое одобрение запросов доступа к внешним директориям
   - [Ограничение путей поиска](docs/scenarios/strict-path-restrictions.md) — перехват glob/grep, проверка и перенаправление путей
+  - [Поддержка compile_commands.json](docs/scenarios/compile-commands.md) — автоматическое извлечение директорий из базы компиляции
   - [Toast-уведомления об ошибках](docs/scenarios/toast-notifications.md)
   - [Логирование](docs/scenarios/logging.md)
   - [Внутренняя инфраструктура](docs/scenarios/internal-infrastructure.md) — FsHost, _testing, spawn, IGNORE_TOOLS

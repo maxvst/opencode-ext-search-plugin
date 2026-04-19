@@ -22,4 +22,4 @@ const IGNORE_TOOLS = new Set([
 
 export { IS_WIN, RG_BIN, IGNORE_TOOLS }
 export { log, setLogClient } from "./logging"
-export type { Options } from "./types"
+export type { Options, ExternalDir } from "./types"

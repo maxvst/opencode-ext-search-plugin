@@ -181,7 +181,7 @@ describe("toast notifications", () => {
     )
 
     const toast = toasts.find(
-      (t) => t.message?.includes("No directories configured"),
+      (t) => t.message?.includes("No directories") || t.message?.includes("plugin is inactive"),
     )
     expect(toast).toBeDefined()
     expect(toast!.variant).toBe("warning")
@@ -198,7 +198,7 @@ describe("toast notifications", () => {
     )
 
     const toast = toasts.find(
-      (t) => t.message?.includes("No directories configured"),
+      (t) => t.message?.includes("No directories") || t.message?.includes("plugin is inactive"),
     )
     expect(toast).toBeDefined()
     expect(result).toEqual({})

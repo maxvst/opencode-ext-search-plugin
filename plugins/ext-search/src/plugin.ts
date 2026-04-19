@@ -1,6 +1,6 @@
 import path from "path"
 import { log, setLogClient, IGNORE_TOOLS } from "./constants"
-import type { Options, PluginContext, ToastInput, SearchDeps, GrepDeps } from "./types"
+import type { Options, PluginContext, ToastInput, SearchDeps, GrepDeps, ExternalDir } from "./types"
 import { findRgBinary, setRgPathOverride, resetRgCache } from "./rg"
 import { resolveDirectories, resolveBasePath, filterCoveredDirs } from "./paths"
 import { findPluginConfigDir, setPluginDirOverride, resetConfigState } from "./config"
@@ -12,6 +12,7 @@ import { handleGlob } from "./handler-glob"
 import { setFsHost, resetFsHost } from "./fs-host"
 import { createAutoPermitHandler } from "./auto-permit"
 import { createStrictPathBeforeHook } from "./strict-paths"
+import { parseCompileCommands, markDisabledConfigDirs } from "./compile-commands"
 
 async function showToast(ctx: PluginContext, input: ToastInput): Promise<void> {
   try {
@@ -30,7 +31,7 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
     await showToast(ctx, {
       variant: "warning",
       title: "ext-search",
-      message: "No directories configured. The plugin is inactive.",
+      message: "No directories or compile_commands_dir configured. The plugin is inactive.",
     })
     return {}
   }
@@ -60,10 +61,17 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
   const basePath = resolveBasePath(opts.root, openDir, worktree, configResult.dir)
   log.info("basePath computed", { basePath, root: opts.root })
 
-  const dirsResult = resolveDirectories(opts.directories, basePath)
-  log.info("resolvedDirs", { dirs: dirsResult.resolved })
+  const configExternalDirs: ExternalDir[] = []
+  const configMissing: string[] = []
+  if (opts.directories.length) {
+    const dirsResult = resolveDirectories(opts.directories, basePath)
+    for (const d of dirsResult.resolved) {
+      configExternalDirs.push({ path: d, source: "config" })
+    }
+    configMissing.push(...dirsResult.missing)
+  }
 
-  for (const d of dirsResult.missing) {
+  for (const d of configMissing) {
     await showToast(ctx, {
       variant: "warning",
       title: "ext-search",
@@ -71,7 +79,26 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
     })
   }
 
-  if (!dirsResult.resolved.length) {
+  const ccDirs: ExternalDir[] = []
+  if (opts.compile_commands_dir && configResult.dir) {
+    const ccResult = parseCompileCommands(opts.compile_commands_dir, configResult.dir, configExternalDirs)
+    if (ccResult.error) {
+      await showToast(ctx, {
+        variant: "error",
+        title: "ext-search",
+        message: ccResult.error,
+      })
+    }
+    ccDirs.push(...ccResult.dirs)
+  }
+
+  const allDirs: ExternalDir[] = [...configExternalDirs, ...ccDirs]
+  markDisabledConfigDirs(configExternalDirs, ccDirs)
+
+  const activeDirPaths = allDirs.filter((d) => !d.disabled).map((d) => d.path)
+  log.info("activeDirPaths", { total: allDirs.length, active: activeDirPaths.length, disabled: allDirs.filter((d) => d.disabled).length })
+
+  if (!activeDirPaths.length) {
     await showToast(ctx, {
       variant: "warning",
       title: "ext-search",
@@ -88,9 +115,9 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
       message: "ripgrep (rg) not found. Grep search in external directories will be limited.",
     })
   }
-  log.info("initialized", { dirs: dirsResult.resolved.length, rg: rgPath ?? "not found" })
+  log.info("initialized", { dirs: activeDirPaths.length, rg: rgPath ?? "not found" })
 
-  const depsResult = await createDepsReadTool(dirsResult.resolved)
+  const depsResult = await createDepsReadTool(activeDirPaths)
   if (!depsResult.zodFound) {
     await showToast(ctx, {
       variant: "warning",
@@ -100,7 +127,7 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
   }
 
   const searchDeps: SearchDeps = {
-    resolvedDirs: dirsResult.resolved,
+    resolvedDirs: activeDirPaths,
     excludePatterns: opts.excludePatterns,
     maxResults: opts.maxResults,
     worktree,
@@ -108,7 +135,7 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
     configDir: configResult.dir,
   }
 
-  const autoPermitHandler = createAutoPermitHandler(dirsResult.resolved, ctx.client, configResult.dir)
+  const autoPermitHandler = createAutoPermitHandler(activeDirPaths, ctx.client, configResult.dir)
 
   const hooks: Record<string, any> = {
     event: autoPermitHandler,
@@ -144,7 +171,7 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
     log.info("strict_path_restrictions enabled, registering tool.execute.before hook")
     hooks["tool.execute.before"] = createStrictPathBeforeHook(
       configResult.dir,
-      dirsResult.resolved,
+      activeDirPaths,
       openDir,
     )
   }

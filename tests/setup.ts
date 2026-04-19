@@ -7,6 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const FIXTURES_DIR = path.resolve(__dirname, "fixtures", "monorepo")
 const FIXTURES_DEEP_DIR = path.resolve(__dirname, "fixtures", "monorepo-deep")
 const FIXTURES_STRICT_DIR = path.resolve(__dirname, "fixtures", "monorepo-strict")
+const FIXTURES_CC_DIR = path.resolve(__dirname, "fixtures", "monorepo-cc")
 const PLUGIN_DIR = path.resolve(__dirname, "..", "plugins", "ext-search")
 
 export interface Dirs {
@@ -65,6 +66,37 @@ export function setupTestMonorepoStrict(testDir?: string): Dirs {
   return getDirs(dir)
 }
 
+export interface CcDirs {
+  root: string
+  app: string
+  ccExternal: string
+}
+
+export function getCcDirs(testDir: string): CcDirs {
+  return {
+    root: testDir,
+    app: path.join(testDir, "team-alpha", "my-app"),
+    ccExternal: path.join(testDir, "cc-external", "lib", "src"),
+  }
+}
+
+export function setupTestMonorepoCC(testDir?: string): CcDirs {
+  const dir = testDir ?? createTestDir()
+
+  fs.cpSync(FIXTURES_CC_DIR, dir, { recursive: true })
+  fs.cpSync(PLUGIN_DIR, path.join(dir, "team-alpha", ".opencode", "plugins", "ext-search"), { recursive: true })
+
+  // Generate compile_commands.json with absolute paths pointing to the temp dir
+  const ccContent = JSON.stringify([
+    { directory: path.join(dir, "cc-external", "lib"), file: "src/cc_math.h" },
+    { directory: path.join(dir, "cc-external", "lib"), file: "src/cc_types.h" },
+  ])
+  fs.mkdirSync(path.join(dir, "build"), { recursive: true })
+  fs.writeFileSync(path.join(dir, "build", "compile_commands.json"), ccContent)
+
+  return getCcDirs(dir)
+}
+
 export function cleanup(testDir: string): void {
   try {
     fs.rmSync(testDir, { recursive: true, force: true })
@@ -89,4 +121,10 @@ export function getStrictTestDirs(): Dirs {
   const testDir = process.env.EXT_SEARCH_STRICT_TEST_DIR
   if (!testDir) throw new Error("EXT_SEARCH_STRICT_TEST_DIR env not set — was global-setup executed?")
   return getDirs(testDir)
+}
+
+export function getCcTestDirs(): CcDirs {
+  const testDir = process.env.EXT_SEARCH_CC_TEST_DIR
+  if (!testDir) throw new Error("EXT_SEARCH_CC_TEST_DIR env not set — was global-setup executed?")
+  return getCcDirs(testDir)
 }

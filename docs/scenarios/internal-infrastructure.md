@@ -75,3 +75,17 @@ codesearch, skill, question, todo, batch, plan, lsp, deps_read
 | `permission?.reply(params)` | Ответ на запрос разрешения. `params.requestID` — идентификатор запроса, `params.reply` — `"once"`, `"always"` или `"reject"` |
 
 Поле `permission` является опциональным (`permission?`) — его наличие зависит от версии OpenCode. Плагин проверяет доступность `client.permission?.reply` перед вызовом и логирует предупреждение при его отсутствии. Используется механизмом авто-permit для автоматического одобрения доступа к внешним директориям (подробнее см. [Авто-permit](auto-permit.md)).
+
+## compile-commands — парсер базы компиляции
+
+Модуль `compile-commands.ts` обеспечивает извлечение директорий исходных файлов из `compile_commands.json`. Подробнее см. [Поддержка compile_commands.json](compile-commands.md).
+
+Экспортируемые функции:
+
+| Функция | Описание |
+|---|---|
+| `parseCompileCommands(ccDir, configDir, configDirs)` | Парсит `compile_commands.json`, извлекает уникальные директории исходных файлов. Возвращает `{ dirs: ExternalDir[], error?: string }` |
+| `markDisabledConfigDirs(configDirs, ccDirs)` | Помечает config-директории как `disabled: true`, если они являются поддиректориями cc-директорий |
+| `addDirNoNested(set, candidate)` | Добавляет директорию в Set с дедупликацией: дочерние заменяются родительскими, кандидат-дочерняя пропускается |
+| `isSubdirOf(candidate, parent)` | Проверяет, является ли `candidate` поддиректорией `parent` (или совпадает) |
+| `isOrInsideAny(candidate, dirs)` | Проверяет, совпадает ли `candidate` с одной из директорий или является их поддиректорией |
