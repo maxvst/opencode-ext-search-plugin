@@ -27,6 +27,8 @@
 
 Функция `parseCompileCommands(ccDir, configDir, configDirs)` выполняет следующие шаги:
 
+> **Примечание:** если `configDir` равен `null` (т.е. `opencode.json` не найден при обходе от openDir), парсинг `compile_commands.json` молча пропускается — `parseCompileCommands` не вызывается. Плагин продолжает работу без cc-директорий.
+
 ```mermaid
 flowchart TD
     A["ccAbsPath = resolve(configDir, ccDir)"] --> B["ccFile = join(ccAbsPath, 'compile_commands.json')"]

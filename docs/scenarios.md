@@ -101,7 +101,7 @@ flowchart TD
 ## Подробные разделы
 
 - [Инициализация плагина](scenarios/plugin-initialization.md) — проверка конфигурации, вычисление basePath, разрешение внешних директорий, извлечение cc-директорий, объединение и фильтрация, обнаружение ripgrep (поиск в PATH и директориях OpenCode, кэширование), поиск zod, сопоставление путей при поиске configDir, глубокая вложенность с промежуточными конфигами
-- [Обработка grep / glob](scenarios/grep-glob-processing.md) — цепочка проверок, фильтр include для grep, runtime-подсказка при отсутствии rg, ограничения результатов, алгоритм исключений, реализация glob-поиска (Bun.Glob / walkDir fallback), накопление метаданных, слияние результатов, фильтрация подсказки по результатам поиска
+- [Обработка grep / glob](scenarios/grep-glob-processing.md) — цепочка проверок (три механизма защиты от дублирования: isPathInExternalDirs, isNarrowSearchPath, filterCoveredDirs), фильтр include для grep, runtime-подсказка при отсутствии rg, ограничения результатов (maxResults как --max-count на файл для grep, на директорию для glob), алгоритм исключений, реализация glob-поиска (Bun.Glob / walkDir fallback), накопление метаданных, слияние результатов, фильтрация подсказки по результатам поиска
 - [deps_read](scenarios/deps-read.md) — кастомный tool для чтения файлов из внешних директорий, формат вывода readFileContent (нумерация, footer, ошибки)
 - [Авто-permit](scenarios/auto-permit.md) — автоматическое одобрение запросов `external_directory`, извлечение путей из glob и metadata, авто-одобрение configDir, соображения безопасности
 - [Ограничение путей поиска](scenarios/strict-path-restrictions.md) — перехват glob/grep через `tool.execute.before`, проверка путей, перенаправление в configDir

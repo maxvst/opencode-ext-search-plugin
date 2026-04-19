@@ -103,19 +103,23 @@ flowchart TD
 
 ### Этап 2: поиск в стандартных директориях OpenCode
 
-Если `rg` не найден в PATH, плагин формирует список кандидат-директорий, комбинируя платформенные базовые директории со стандартными суффиксами:
+Если `rg` не найден в PATH, плагин формирует список кандидат-директорий как декартово произведение платформенных базовых директорий и стандартных суффиксов. **Все** суффиксы комбинируются со **всеми** базовыми директориями независимо от платформы — это гарантирует обнаружение `rg` даже при нестандартных конфигурациях.
 
-**Linux:**
-- Базовые: `$XDG_CACHE_HOME` (default `~/.cache`), `$XDG_DATA_HOME` (default `~/.local/share`), `$HOME`
-- Суффиксы: `opencode/bin`, `.opencode/bin`, `.cache/opencode/bin`, `.local/share/opencode/bin`
+**Суффиксы (применяются ко всем платформам):**
+- `opencode/bin`
+- `.opencode/bin`
+- `.cache/opencode/bin`
+- `.local/share/opencode/bin`
+- `Library/Caches/opencode/bin`
+- `Library/Application Support/opencode/bin`
 
-**macOS:**
-- Базовые: `$HOME`
-- Суффиксы: `opencode/bin`, `.opencode/bin`, `Library/Caches/opencode/bin`, `Library/Application Support/opencode/bin`
+**Платформенные базовые директории:**
 
-**Windows:**
-- Базовые: `%LOCALAPPDATA%`, `%APPDATA%`, `%USERPROFILE%`
-- Суффиксы: `opencode/bin`, `.opencode/bin`
+| Платформа | Базовые директории |
+|---|---|
+| Linux | `$XDG_CACHE_HOME` (default `~/.cache`), `$XDG_DATA_HOME` (default `~/.local/share`), `$HOME` |
+| macOS | `$HOME` |
+| Windows | `%LOCALAPPDATA%`, `%APPDATA%`, `%USERPROFILE%` |
 
 Если `rg` не найден — показывается toast (`warning`) с сообщением, что grep-поиск будет ограничен.
 
