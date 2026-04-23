@@ -10,12 +10,8 @@ type ValidatedOptions = Required<Omit<Options, "root" | "strict_path_restriction
   compile_commands_dir?: string
 }
 
-function validateOptions(options?: Options): ValidatedOptions | null {
+function validateOptions(options?: Options): ValidatedOptions {
   const opts = options ?? ({} as Options)
-  if (!opts.directories?.length && !opts.compile_commands_dir) {
-    log.warn("no directories or compile_commands_dir configured, plugin inactive")
-    return null
-  }
   log.debug("options validated", { directories: opts.directories, root: opts.root, compile_commands_dir: opts.compile_commands_dir })
   return {
     directories: opts.directories ?? [],

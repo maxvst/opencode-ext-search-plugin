@@ -8,6 +8,7 @@ const FIXTURES_DIR = path.resolve(__dirname, "fixtures", "monorepo")
 const FIXTURES_DEEP_DIR = path.resolve(__dirname, "fixtures", "monorepo-deep")
 const FIXTURES_STRICT_DIR = path.resolve(__dirname, "fixtures", "monorepo-strict")
 const FIXTURES_CC_DIR = path.resolve(__dirname, "fixtures", "monorepo-cc")
+const FIXTURES_USER_DIR = path.resolve(__dirname, "fixtures", "monorepo-user")
 const PLUGIN_DIR = path.resolve(__dirname, "..", "plugins", "ext-search")
 
 export interface Dirs {
@@ -72,6 +73,12 @@ export interface CcDirs {
   ccExternal: string
 }
 
+export interface UserDirs {
+  root: string
+  app: string
+  userExternal: string
+}
+
 export function getCcDirs(testDir: string): CcDirs {
   return {
     root: testDir,
@@ -95,6 +102,28 @@ export function setupTestMonorepoCC(testDir?: string): CcDirs {
   fs.writeFileSync(path.join(dir, "build", "compile_commands.json"), ccContent)
 
   return getCcDirs(dir)
+}
+
+export function getUserDirs(testDir: string): UserDirs {
+  return {
+    root: testDir,
+    app: path.join(testDir, "team-alpha", "my-app"),
+    userExternal: path.join(testDir, "user-external", "lib"),
+  }
+}
+
+export function setupTestMonorepoUser(testDir?: string): UserDirs {
+  const dir = testDir ?? createTestDir()
+
+  fs.cpSync(FIXTURES_USER_DIR, dir, { recursive: true })
+  fs.cpSync(PLUGIN_DIR, path.join(dir, "team-alpha", ".opencode", "plugins", "ext-search"), { recursive: true })
+
+  const extSearchContent = JSON.stringify({
+    user_dirs: [path.join(dir, "user-external", "lib")],
+  })
+  fs.writeFileSync(path.join(dir, "team-alpha", ".ext-search.json"), extSearchContent)
+
+  return getUserDirs(dir)
 }
 
 export function cleanup(testDir: string): void {
@@ -127,4 +156,10 @@ export function getCcTestDirs(): CcDirs {
   const testDir = process.env.EXT_SEARCH_CC_TEST_DIR
   if (!testDir) throw new Error("EXT_SEARCH_CC_TEST_DIR env not set — was global-setup executed?")
   return getCcDirs(testDir)
+}
+
+export function getUserTestDirs(): UserDirs {
+  const testDir = process.env.EXT_SEARCH_USER_TEST_DIR
+  if (!testDir) throw new Error("EXT_SEARCH_USER_TEST_DIR env not set — was global-setup executed?")
+  return getUserDirs(testDir)
 }

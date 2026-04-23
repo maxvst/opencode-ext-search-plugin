@@ -13,6 +13,8 @@ import { setFsHost, resetFsHost } from "./fs-host"
 import { createAutoPermitHandler } from "./auto-permit"
 import { createStrictPathBeforeHook } from "./strict-paths"
 import { parseCompileCommands, markDisabledConfigDirs } from "./compile-commands"
+import { parseUserDirs, markDisabledByUserDirs } from "./user-dirs"
+import { getFsHost } from "./fs-host"
 
 async function showToast(ctx: PluginContext, input: ToastInput): Promise<void> {
   try {
@@ -27,20 +29,25 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
   log.info("ext-search plugin initializing", { directory: ctx.directory, worktree: ctx.worktree })
 
   const opts = validateOptions(options)
-  if (!opts) {
-    await showToast(ctx, {
-      variant: "warning",
-      title: "ext-search",
-      message: "No directories or compile_commands_dir configured. The plugin is inactive.",
-    })
-    return {}
-  }
 
   const worktree = path.resolve(ctx.worktree)
   const openDir = path.resolve(ctx.directory)
   log.debug("resolved context paths", { worktree, openDir })
 
+  const hasAnySource = opts.directories.length > 0 || !!opts.compile_commands_dir
   const configResult = findPluginConfigDir(openDir)
+
+  const userDirsFile = configResult.dir ? path.join(configResult.dir, ".ext-search.json") : null
+  const userDirsFileExists = userDirsFile ? getFsHost().existsSync(userDirsFile) : false
+
+  if (!hasAnySource && !userDirsFileExists) {
+    await showToast(ctx, {
+      variant: "warning",
+      title: "ext-search",
+      message: "No directories or compile_commands_dir configured and no .ext-search.json found. The plugin is inactive.",
+    })
+    return {}
+  }
 
   for (const pe of configResult.parseErrors) {
     await showToast(ctx, {
@@ -92,8 +99,32 @@ const extSearchPlugin = async (ctx: PluginContext, options?: Options) => {
     ccDirs.push(...ccResult.dirs)
   }
 
-  const allDirs: ExternalDir[] = [...configExternalDirs, ...ccDirs]
   markDisabledConfigDirs(configExternalDirs, ccDirs)
+  const existingDirs = [...configExternalDirs, ...ccDirs]
+
+  const userResult = configResult.dir
+    ? parseUserDirs(configResult.dir, basePath, existingDirs, configResult.dir)
+    : { dirs: [] as ExternalDir[], errors: [] as Array<{ dir: string; message: string }>, parseError: undefined as string | undefined }
+
+  if (userResult.parseError) {
+    await showToast(ctx, {
+      variant: "error",
+      title: "ext-search",
+      message: userResult.parseError,
+    })
+  }
+
+  for (const err of userResult.errors) {
+    await showToast(ctx, {
+      variant: "error",
+      title: "ext-search",
+      message: err.message,
+    })
+  }
+
+  markDisabledByUserDirs(existingDirs, userResult.dirs)
+
+  const allDirs: ExternalDir[] = [...existingDirs, ...userResult.dirs]
 
   const activeDirPaths = allDirs.filter((d) => !d.disabled).map((d) => d.path)
   log.info("activeDirPaths", { total: allDirs.length, active: activeDirPaths.length, disabled: allDirs.filter((d) => d.disabled).length })

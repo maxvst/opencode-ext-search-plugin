@@ -80,7 +80,7 @@ sequenceDiagram
 
 ## Поддержка compile_commands.json
 
-Плагин умеет автоматически извлекать директории исходных файлов из базы компиляции `compile_commands.json` (опциональный параметр `compile_commands_dir`). Извлечённые директории объединяются с явно указанными config-директориями. Если config-директория оказывается внутри cc-директории — она помечается как disabled, чтобы избежать дублирования.
+Плагин умеет автоматически извлекать директории исходных файлов из базы компиляции `compile_commands.json` (опциональный параметр `compile_commands_dir`). Извлечённые директории объединяются с явно указанными config-директориями. Если config-директория оказывается внутри cc-директории — она помечается как disabled, чтобы избежать дублирования. Кроме того, cc-директория может быть помечена как disabled, если она оказывается внутри user-директории (см. ниже).
 
 ```mermaid
 flowchart TD
@@ -98,14 +98,34 @@ flowchart TD
 
 ---
 
+## Пользовательские директории из .ext-search.json
+
+Плагин поддерживает загрузку внешних директорий из файла `.ext-search.json`, расположенного в configDir (рядом с `opencode.json`). Файл содержит массив `user_dirs` со строковыми путями. Плагин может быть активирован исключительно через этот файл — без указания `directories` или `compile_commands_dir` в `opencode.json`. Если config- или cc-директория оказывается внутри user-директории — она помечается как disabled, чтобы избежать дублирования.
+
+```mermaid
+flowchart TD
+    A["configDir/.ext-search.json"] --> B["parseUserDirs()"]
+    B --> C["Валидация путей"]
+    C --> D["userDirs"]
+    D --> E["allDirs = [...configDirs, ...ccDirs, ...userDirs]"]
+    E --> F["markDisabledByUserDirs()"]
+    F --> G["activeDirPaths = не-disabled"]
+    G --> H["Передать во все потребители"]
+```
+
+> Подробное описание: [Пользовательские директории из .ext-search.json](scenarios/user-dirs.md)
+
+---
+
 ## Подробные разделы
 
-- [Инициализация плагина](scenarios/plugin-initialization.md) — проверка конфигурации, вычисление basePath, разрешение внешних директорий, извлечение cc-директорий, объединение и фильтрация, обнаружение ripgrep (поиск в PATH и директориях OpenCode, кэширование), поиск zod, сопоставление путей при поиске configDir, глубокая вложенность с промежуточными конфигами
+- [Инициализация плагина](scenarios/plugin-initialization.md) — проверка конфигурации, вычисление basePath, разрешение внешних директорий, извлечение cc-директорий, чтение пользовательских директорий из .ext-search.json, объединение и фильтрация, обнаружение ripgrep (поиск в PATH и директориях OpenCode, кэширование), поиск zod, сопоставление путей при поиске configDir, глубокая вложенность с промежуточными конфигами
 - [Обработка grep / glob](scenarios/grep-glob-processing.md) — цепочка проверок (три механизма защиты от дублирования: isPathInExternalDirs, isNarrowSearchPath, filterCoveredDirs), фильтр include для grep, runtime-подсказка при отсутствии rg, ограничения результатов (maxResults как --max-count на файл для grep, на директорию для glob), алгоритм исключений, реализация glob-поиска (Bun.Glob / walkDir fallback), накопление метаданных, слияние результатов, фильтрация подсказки по результатам поиска
 - [deps_read](scenarios/deps-read.md) — кастомный tool для чтения файлов из внешних директорий, формат вывода readFileContent (нумерация, footer, ошибки)
 - [Авто-permit](scenarios/auto-permit.md) — автоматическое одобрение запросов `external_directory`, извлечение путей из glob и metadata, авто-одобрение configDir, соображения безопасности
 - [Ограничение путей поиска](scenarios/strict-path-restrictions.md) — перехват glob/grep через `tool.execute.before`, проверка путей, перенаправление в configDir
 - [Поддержка compile_commands.json](scenarios/compile-commands.md) — извлечение директорий исходных файлов из базы компиляции, дедупликация, пометка config-директорий как disabled, объединение с config-директориями
+- [Пользовательские директории из .ext-search.json](scenarios/user-dirs.md) — загрузка внешних директорий из файла конфигурации, валидация путей, дедупликация, пометка config/cc-директорий как disabled, активация плагина без opencode.json-параметров
 - [Toast-уведомления об ошибках](scenarios/toast-notifications.md) — перечень toast-уведомлений и порядок проверок
 - [Логирование](scenarios/logging.md) — структурированные логи через client.app.log, уровни, ключевые точки логирования, fallback через EXT_SEARCH_DEBUG
 - [Внутренняя инфраструктура](scenarios/internal-infrastructure.md) — FsHost (абстракция файловой системы), namespace _testing, spawn (Bun.spawn / child_process fallback), IGNORE_TOOLS, compile-commands (парсер базы компиляции)

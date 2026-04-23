@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import os from "node:os"
-import { setupTestMonorepo, setupTestMonorepoDeep, setupTestMonorepoStrict, setupTestMonorepoCC, cleanup } from "./setup"
+import { setupTestMonorepo, setupTestMonorepoDeep, setupTestMonorepoStrict, setupTestMonorepoCC, setupTestMonorepoUser, cleanup } from "./setup"
 
 const OPENCODE = process.env.OPENCODE_BIN || path.join(os.homedir(), ".opencode", "bin", "opencode")
 
@@ -23,10 +23,14 @@ export default function globalSetup() {
   const ccDirs = setupTestMonorepoCC()
   process.env.EXT_SEARCH_CC_TEST_DIR = ccDirs.root
 
+  const userDirs = setupTestMonorepoUser()
+  process.env.EXT_SEARCH_USER_TEST_DIR = userDirs.root
+
   console.log(`Test dir: ${dirs.root}`)
   console.log(`Deep test dir: ${deepDirs.root}`)
   console.log(`Strict test dir: ${strictDirs.root}`)
   console.log(`CC test dir: ${ccDirs.root}`)
+  console.log(`User test dir: ${userDirs.root}`)
   console.log(`Opencode: ${OPENCODE}\n`)
 
   return () => {
@@ -34,5 +38,6 @@ export default function globalSetup() {
     cleanup(deepDirs.root)
     cleanup(strictDirs.root)
     cleanup(ccDirs.root)
+    cleanup(userDirs.root)
   }
 }

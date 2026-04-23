@@ -49,7 +49,7 @@ interface ToolOutput {
 
 type ExternalDir = {
   path: string
-  source: "config" | "compile_commands"
+  source: "config" | "compile_commands" | "user"
   disabled?: boolean
 }
 

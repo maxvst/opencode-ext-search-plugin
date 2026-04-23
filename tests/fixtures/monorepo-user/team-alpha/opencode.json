@@ -1,0 +1,10 @@
+{
+  "plugin": [
+    [
+      "./.opencode/plugins/ext-search",
+      {
+        "directories": ["shared-types"]
+      }
+    ]
+  ]
+}
